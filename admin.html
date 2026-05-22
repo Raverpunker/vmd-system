@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>관리자 | VMD 점검 시스템</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --primary: #E8340E; --primary-dark: #C02A0B; --primary-light: #FFF0ED;
+      --secondary: #2C3E50; --success: #27AE60; --warning: #F39C12;
+      --danger: #E74C3C; --bg: #F0F2F5; --card: #FFFFFF;
+      --border: #E0E4EA; --text: #1A1A2E; --text-muted: #6B7280;
+      --radius: 12px; --shadow: 0 2px 12px rgba(0,0,0,0.08);
+      --sidebar-w: 220px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Noto Sans KR', sans-serif; background: var(--bg); color: var(--text); }
+
+    /* LOGIN */
+    .login-overlay {
+      position: fixed; inset: 0; background: linear-gradient(135deg,#2C3E50,#1A1A2E);
+      display: flex; align-items: center; justify-content: center; z-index: 500;
+    }
+    .login-overlay.hidden { display: none; }
+    .login-card {
+      background: white; border-radius: 20px; padding: 40px 36px;
+      width: 100%; max-width: 380px; text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    .login-logo { font-size: 48px; margin-bottom: 8px; }
+    .login-title { font-size: 20px; font-weight: 800; color: var(--secondary); margin-bottom: 4px; }
+    .login-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 28px; }
+    .login-input {
+      width: 100%; padding: 14px 16px; border: 1.5px solid var(--border);
+      border-radius: 10px; font-size: 15px; margin-bottom: 14px;
+      transition: border-color 0.2s;
+    }
+    .login-input:focus { outline: none; border-color: var(--primary); }
+    .login-btn {
+      width: 100%; padding: 14px; background: linear-gradient(135deg,var(--primary),#FF5722);
+      color: white; border: none; border-radius: 10px; font-size: 15px;
+      font-weight: 700; cursor: pointer;
+    }
+    .login-error { color: var(--danger); font-size: 13px; margin-top: 10px; display:none; }
+
+    /* LAYOUT */
+    .app-layout { display: flex; min-height: 100vh; }
+    .sidebar {
+      width: var(--sidebar-w); background: var(--secondary); color: white;
+      position: fixed; top: 0; left: 0; bottom: 0; z-index: 50;
+      display: flex; flex-direction: column;
+    }
+    .sidebar-header {
+      padding: 20px 16px; border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .sidebar-logo { font-size: 22px; }
+    .sidebar-title { font-size: 14px; font-weight: 700; margin-top: 4px; }
+    .sidebar-sub { font-size: 11px; opacity: 0.6; }
+    .sidebar-nav { padding: 12px 0; flex: 1; }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px; padding: 12px 20px;
+      cursor: pointer; transition: background 0.2s; font-size: 14px;
+      border-left: 3px solid transparent;
+    }
+    .nav-item:hover { background: rgba(255,255,255,0.1); }
+    .nav-item.active {
+      background: rgba(232,52,14,0.2); border-left-color: var(--primary);
+      color: #FF8A70; font-weight: 600;
+    }
+    .nav-icon { font-size: 18px; width: 24px; }
+    .sidebar-footer {
+      padding: 16px; border-top: 1px solid rgba(255,255,255,0.1);
+    }
+    .logout-btn {
+      display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+      background: rgba(255,255,255,0.1); border: none; color: white;
+      border-radius: 8px; cursor: pointer; font-size: 13px; width: 100%;
+    }
+    .logout-btn:hover { background: rgba(255,255,255,0.2); }
+
+    /* MAIN CONTENT */
+    .main-content { margin-left: var(--sidebar-w); flex: 1; min-height: 100vh; }
+    .top-bar {
+      background: white; padding: 16px 28px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow: var(--shadow); position: sticky; top: 0; z-index: 40;
+    }
+    .top-bar h1 { font-size: 18px; font-weight: 700; color: var(--secondary); }
+    .top-bar-right { font-size: 13px; color: var(--text-muted); }
+    .content-area { padding: 24px 28px; }
+
+    /* TABS */
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+
+    /* CARD */
+    .card {
+      background: white; border-radius: var(--radius); padding: 24px;
+      box-shadow: var(--shadow); border: 1px solid var(--border); margin-bottom: 20px;
+    }
+    .card-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 20px; padding-bottom: 14px;
+      border-bottom: 2px solid var(--primary-light);
+    }
+    .card-title { font-size: 16px; font-weight: 700; color: var(--secondary); display:flex; align-items:center; gap:8px; }
+
+    /* BUTTONS */
+    .btn { padding: 10px 18px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-success { background: var(--success); color: white; }
+    .btn-success:hover { background: #219A52; }
+    .btn-outline { background: white; color: var(--secondary); border: 1.5px solid var(--border); }
+    .btn-outline:hover { background: var(--bg); }
+    .btn-danger { background: var(--danger); color: white; }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* UPLOAD AREA */
+    .upload-area {
+      border: 2px dashed var(--border); border-radius: 10px;
+      padding: 36px 20px; text-align: center; cursor: pointer;
+      background: var(--bg); transition: all 0.2s;
+    }
+    .upload-area:hover { border-color: var(--primary); background: var(--primary-light); }
+    .upload-area input { display: none; }
+    .upload-icon { font-size: 36px; margin-bottom: 8px; }
+    .upload-text { font-size: 14px; font-weight: 600; color: var(--secondary); }
+    .upload-sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+    /* REGULATION LIST */
+    .reg-item {
+      display: flex; align-items: center; gap: 14px; padding: 14px 16px;
+      border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px;
+      transition: box-shadow 0.2s;
+    }
+    .reg-item:hover { box-shadow: var(--shadow); }
+    .reg-icon { font-size: 28px; flex-shrink: 0; }
+    .reg-info { flex: 1; min-width: 0; }
+    .reg-name { font-size: 14px; font-weight: 600; color: var(--secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .reg-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .reg-status { font-size: 11px; padding: 3px 8px; border-radius: 20px; font-weight: 600; }
+    .reg-active { background: #ECFDF5; color: #065F46; }
+    .reg-inactive { background: #F3F4F6; color: #6B7280; }
+    .reg-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+    /* TABLE */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th {
+      background: var(--bg); padding: 10px 12px; text-align: left;
+      font-weight: 600; color: var(--text-muted); border-bottom: 2px solid var(--border);
+      white-space: nowrap;
+    }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    tr:hover td { background: #FAFBFC; }
+    .status-badge { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
+    .status-submitted { background: #EFF6FF; color: #1D4ED8; }
+    .status-needs_revision { background: #FFF7ED; color: #C2410C; }
+    .status-approved { background: #ECFDF5; color: #065F46; }
+
+    /* STATS CARDS */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 20px; }
+    .stat-card {
+      background: white; border-radius: var(--radius); padding: 20px;
+      box-shadow: var(--shadow); border: 1px solid var(--border); text-align: center;
+    }
+    .stat-num { font-size: 32px; font-weight: 800; color: var(--primary); }
+    .stat-label { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+    /* FILTERS */
+    .filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; align-items: flex-end; }
+    .filter-group { display: flex; flex-direction: column; gap: 4px; }
+    .filter-group label { font-size: 11px; font-weight: 600; color: var(--text-muted); }
+    .filter-group select, .filter-group input {
+      padding: 8px 12px; border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: 13px; background: white; min-width: 140px;
+    }
+    .filter-group select:focus, .filter-group input:focus { outline: none; border-color: var(--primary); }
+
+    /* MODAL */
+    .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .modal.hidden { display: none; }
+    .modal-box { background: white; border-radius: 16px; padding: 28px; width: 100%; max-width: 640px; max-height: 80vh; overflow-y: auto; }
+    .modal-title { font-size: 17px; font-weight: 700; margin-bottom: 16px; }
+    .modal-close-btn { float: right; background: var(--bg); border: none; border-radius: 50%; width: 32px; height: 32px; cursor: pointer; font-size: 16px; }
+
+    /* LOADING */
+    .loading-bar-wrap { background: var(--bg); border-radius: 8px; padding: 20px; margin: 16px 0; }
+    .loading-bar-label { font-size: 13px; color: var(--text-muted); margin-bottom: 8px; }
+    .loading-bar-track { background: var(--border); border-radius: 4px; height: 8px; overflow: hidden; }
+    .loading-bar-fill { background: var(--primary); height: 100%; border-radius: 4px; transition: width 0.4s; }
+
+    /* FEEDBACK VIEW */
+    .feedback-view { white-space: pre-wrap; font-size: 13px; line-height: 1.8; color: var(--text); background: var(--bg); border-radius: 8px; padding: 16px; }
+
+    /* EMPTY STATE */
+    .empty-state { text-align: center; padding: 48px 20px; color: var(--text-muted); }
+    .empty-state .empty-icon { font-size: 48px; margin-bottom: 12px; }
+    .empty-state p { font-size: 14px; }
+
+    /* PAGINATION */
+    .pagination { display: flex; gap: 6px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
+    .page-btn { padding: 6px 12px; border: 1.5px solid var(--border); border-radius: 6px; background: white; cursor: pointer; font-size: 13px; }
+    .page-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+    .page-btn:hover:not(.active) { background: var(--bg); }
+
+    .hidden { display: none !important; }
+
+    @media (max-width: 768px) {
+      .sidebar { width: 60px; }
+      .sidebar-title, .sidebar-sub, .nav-item span, .logout-btn span { display: none; }
+      .main-content { margin-left: 60px; }
+      .content-area { padding: 16px; }
+      .sidebar-header { padding: 16px 8px; }
+      .sidebar-logo { font-size: 18px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- LOGIN OVERLAY -->
+<div class="login-overlay" id="login-overlay">
+  <div class="login-card">
+    <div class="login-logo">🔐</div>
+    <div class="login-title">관리자 로그인</div>
+    <div class="login-sub">VMD 점검 시스템 관리자 페이지</div>
+    <input type="password" class="login-input" id="login-pw" placeholder="비밀번호 입력" autocomplete="current-password">
+    <button class="login-btn" id="login-btn">로그인</button>
+    <div class="login-error" id="login-error">비밀번호가 올바르지 않습니다.</div>
+    <div style="margin-top:16px; font-size:12px; color:var(--text-muted);">
+      <a href="index.html" style="color:var(--text-muted);">← 매장 점검 페이지로</a>
+    </div>
+  </div>
+</div>
+
+<!-- FEEDBACK MODAL -->
+<div class="modal hidden" id="feedback-modal">
+  <div class="modal-box">
+    <button class="modal-close-btn" onclick="document.getElementById('feedback-modal').classList.add('hidden')">✕</button>
+    <div class="modal-title" id="feedback-modal-title">AI 분석 결과</div>
+    <div id="feedback-modal-content" class="feedback-view"></div>
+  </div>
+</div>
+
+<!-- NOTE MODAL -->
+<div class="modal hidden" id="note-modal">
+  <div class="modal-box">
+    <button class="modal-close-btn" onclick="document.getElementById('note-modal').classList.add('hidden')">✕</button>
+    <div class="modal-title">관리자 메모</div>
+    <textarea id="note-input" style="width:100%;height:120px;padding:12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;resize:vertical;" placeholder="매장에 전달할 메모를 입력하세요..."></textarea>
+    <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
+      <button class="btn btn-outline" onclick="document.getElementById('note-modal').classList.add('hidden')">취소</button>
+      <button class="btn btn-primary" id="save-note-btn">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- DB 상태 표시줄 -->
+<div id="db-status-bar" style="display:none;padding:8px 20px;font-size:13px;font-weight:600;text-align:center;position:fixed;top:0;left:0;right:0;z-index:9999;"></div>
+
+<!-- APP LAYOUT -->
+<div class="app-layout">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">📊</div>
+      <div class="sidebar-title">VMD 관리자</div>
+      <div class="sidebar-sub">PS&amp;마케팅(주)</div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-item active" data-tab="regulations">
+        <span class="nav-icon">📋</span>
+        <span>규정 관리</span>
+      </div>
+      <div class="nav-item" data-tab="statistics">
+        <span class="nav-icon">📈</span>
+        <span>점검 현황</span>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="logout-btn" id="logout-btn">
+        <span>🚪</span><span>로그아웃</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <div class="main-content">
+    <div class="top-bar">
+      <h1 id="page-title">📋 VMD 규정 관리</h1>
+      <div class="top-bar-right" id="current-time"></div>
+    </div>
+
+    <div class="content-area">
+
+      <!-- TAB: 규정 관리 -->
+      <div class="tab-pane active" id="tab-regulations">
+        <!-- 업로드 카드 -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">📤 VMD 규정 PDF 업로드</div>
+          </div>
+          <div class="upload-area" id="reg-upload-area">
+            <input type="file" id="reg-file-input" accept=".pdf">
+            <div class="upload-icon">📄</div>
+            <div class="upload-text">PDF 파일을 드래그하거나 클릭하여 업로드</div>
+            <div class="upload-sub">PDF 파일만 가능 · 최대 50MB</div>
+          </div>
+          <div id="upload-progress" class="hidden">
+            <div class="loading-bar-wrap">
+              <div class="loading-bar-label" id="progress-label">처리 중...</div>
+              <div class="loading-bar-track"><div class="loading-bar-fill" id="progress-fill" style="width:0%"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 규정 목록 -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">📚 등록된 규정 목록</div>
+            <button class="btn btn-outline btn-sm" onclick="loadRegulations()">🔄 새로고침</button>
+          </div>
+          <div id="reg-list">
+            <div class="empty-state"><div class="empty-icon">📭</div><p>등록된 규정이 없습니다.</p></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: 점검 현황 -->
+      <div class="tab-pane" id="tab-statistics">
+        <!-- 통계 카드 -->
+        <div class="stats-grid" id="stats-grid">
+          <div class="stat-card"><div class="stat-num" id="stat-total">-</div><div class="stat-label">전체 제출</div></div>
+          <div class="stat-card"><div class="stat-num" id="stat-submitted">-</div><div class="stat-label">검토 대기</div></div>
+          <div class="stat-card"><div class="stat-num" id="stat-needs">-</div><div class="stat-label">수정 필요</div></div>
+          <div class="stat-card"><div class="stat-num" id="stat-approved">-</div><div class="stat-label">승인 완료</div></div>
+        </div>
+
+        <!-- 필터 + 내보내기 -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">🔍 검색 및 필터</div>
+            <button class="btn btn-success btn-sm" onclick="exportToExcel()">📥 엑셀 다운로드</button>
+          </div>
+          <div class="filters">
+            <div class="filter-group">
+              <label>기간 (시작)</label>
+              <input type="date" id="filter-from">
+            </div>
+            <div class="filter-group">
+              <label>기간 (종료)</label>
+              <input type="date" id="filter-to">
+            </div>
+            <div class="filter-group">
+              <label>담당</label>
+              <select id="filter-org"><option value="">전체</option></select>
+            </div>
+            <div class="filter-group">
+              <label>팀</label>
+              <select id="filter-team"><option value="">전체</option></select>
+            </div>
+            <div class="filter-group">
+              <label>상태</label>
+              <select id="filter-status">
+                <option value="">전체</option>
+                <option value="submitted">검토 대기</option>
+                <option value="needs_revision">수정 필요</option>
+                <option value="approved">승인</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label>매장명 검색</label>
+              <input type="text" id="filter-store" placeholder="매장명 입력">
+            </div>
+            <button class="btn btn-primary" style="align-self:flex-end;" onclick="applyFilters()">검색</button>
+            <button class="btn btn-outline" style="align-self:flex-end;" onclick="resetFilters()">초기화</button>
+          </div>
+        </div>
+
+        <!-- 제출 목록 테이블 -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">📋 점검 이력 목록</div>
+            <div id="result-count" style="font-size:13px;color:var(--text-muted);"></div>
+          </div>
+          <div class="table-wrap">
+            <table id="submissions-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>제출일시</th>
+                  <th>담당</th>
+                  <th>팀</th>
+                  <th>매장명</th>
+                  <th>사진</th>
+                  <th>상태</th>
+                  <th>관리</th>
+                </tr>
+              </thead>
+              <tbody id="submissions-tbody">
+                <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-muted);">데이터를 불러오는 중...</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="pagination" id="pagination"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// ⚙️ 설정 - 반드시 변경하세요!
+// ============================================================
+const SUPABASE_URL      = 'https://sdscvhfzgiatxobkotsl.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkc2N2aGZ6Z2lhdHhvYmtvdHNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0MjM0MDcsImV4cCI6MjA5NDk5OTQwN30.gI4YnK4kE3-2UuNKJKPnwYJ91_Uhr6YJzqx7XkApfGw';
+const GEMINI_API_KEY    = 'AIzaSyAJT0KjDJXidG-t0vJe6uNa56QRhFMXTZY';
+const ADMIN_PASSWORD    = 'admin1234';  // ← 반드시 변경하세요!
+
+// ============================================================
+// 매장 데이터
+// ============================================================
+const STORE_DATA = {
+  "대구영업담당": {"구미소매팀":[],"대구소매팀":[],"포항소매팀":[]},
+  "부산영업담당": {"경남소매팀":[],"동부산소매팀":[],"서부산소매팀":[],"울산소매팀":[]},
+  "서부영업담당": {"광주소매팀":[],"전남소매팀":[],"전북소매팀":[],"제주팀":[]},
+  "수도권영업담당": {"강남소매팀":[],"강동소매팀":[],"강북소매팀":[],"강서소매팀":[],"강원소매팀":[],"고양소매팀":[],"서부소매팀":[],"수원소매팀":[],"인천소매팀":[],"중앙소매팀":[]},
+  "유통담당": {"제휴영업팀":[]},
+  "중부영업담당": {"대전소매팀":[],"충청소매팀":[]}
+};
+
+// ============================================================
+// 전역 변수
+// ============================================================
+let sbClient;
+let allSubmissions = [];
+let filteredSubmissions = [];
+let currentPage = 1;
+const PAGE_SIZE = 20;
+let editNoteId = null;
+
+// PDF.js 설정 (로드 실패해도 무시)
+try {
+  if (typeof pdfjsLib !== 'undefined') {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+} catch(e) { console.warn('PDF.js 초기화 실패:', e); }
+
+// ============================================================
+// 로그인
+// ============================================================
+document.getElementById('login-btn').addEventListener('click', doLogin);
+document.getElementById('login-pw').addEventListener('keydown', e => { if(e.key === 'Enter') doLogin(); });
+
+function doLogin() {
+  const pw = document.getElementById('login-pw').value;
+  if (pw === ADMIN_PASSWORD) {
+    document.getElementById('login-overlay').classList.add('hidden');
+    initAdmin();
+  } else {
+    document.getElementById('login-error').style.display = 'block';
+    document.getElementById('login-pw').value = '';
+    document.getElementById('login-pw').focus();
+  }
+}
+
+document.getElementById('logout-btn').addEventListener('click', () => {
+  document.getElementById('login-overlay').classList.remove('hidden');
+  document.getElementById('login-pw').value = '';
+});
+
+// ============================================================
+// 초기화
+// ============================================================
+function initAdmin() {
+  try {
+    const lib = window.supabase;
+    if (lib && typeof lib.createClient === 'function') {
+      sbClient = lib.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      console.log('✅ Supabase 초기화 성공');
+    } else {
+      console.error('❌ window.supabase 없음 — CDN 로드 실패');
+      showDbStatus(false);
+    }
+  } catch(e) {
+    console.error('❌ Supabase 초기화 실패:', e);
+    showDbStatus(false);
+  }
+  setupTabs();
+  setupFilters();
+  updateClock();
+  setInterval(updateClock, 60000);
+  loadRegulations();
+  loadStatistics();
+  loadSubmissions();
+}
+
+function showDbStatus(ok) {
+  const bar = document.getElementById('db-status-bar');
+  if (!bar) return;
+  bar.style.display = 'block';
+  bar.style.background = ok ? '#d4edda' : '#f8d7da';
+  bar.style.color = ok ? '#155724' : '#721c24';
+  bar.textContent = ok
+    ? '✅ Supabase 연결 성공'
+    : '❌ Supabase 연결 실패 — 페이지를 새로고침하거나 Chrome에서 열어보세요';
+}
+
+function updateClock() {
+  document.getElementById('current-time').textContent =
+    new Date().toLocaleString('ko-KR', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+}
+
+// ============================================================
+// 탭 네비게이션
+// ============================================================
+function setupTabs() {
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', function() {
+      const tab = this.dataset.tab;
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      this.classList.add('active');
+      document.getElementById(`tab-${tab}`).classList.add('active');
+      const titles = { regulations:'📋 VMD 규정 관리', statistics:'📈 점검 현황 및 통계' };
+      document.getElementById('page-title').textContent = titles[tab] || '';
+    });
+  });
+}
+
+// ============================================================
+// 필터 설정
+// ============================================================
+function setupFilters() {
+  const orgSel = document.getElementById('filter-org');
+  Object.keys(STORE_DATA).sort().forEach(org => orgSel.add(new Option(org, org)));
+
+  document.getElementById('filter-org').addEventListener('change', function() {
+    const teamSel = document.getElementById('filter-team');
+    teamSel.innerHTML = '<option value="">전체</option>';
+    if (this.value && STORE_DATA[this.value]) {
+      Object.keys(STORE_DATA[this.value]).sort().forEach(t => teamSel.add(new Option(t, t)));
+    }
+  });
+
+  // 기본 날짜: 최근 3개월
+  const today = new Date();
+  const threeMonthsAgo = new Date(today);
+  threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+  document.getElementById('filter-to').value = today.toISOString().split('T')[0];
+  document.getElementById('filter-from').value = threeMonthsAgo.toISOString().split('T')[0];
+}
+
+// ============================================================
+// 규정 관리
+// ============================================================
+const regUploadArea = document.getElementById('reg-upload-area');
+const regFileInput = document.getElementById('reg-file-input');
+
+regUploadArea.addEventListener('click', () => regFileInput.click());
+regUploadArea.addEventListener('dragover', e => { e.preventDefault(); regUploadArea.style.borderColor='var(--primary)'; });
+regUploadArea.addEventListener('dragleave', () => regUploadArea.style.borderColor='');
+regUploadArea.addEventListener('drop', e => {
+  e.preventDefault();
+  regUploadArea.style.borderColor = '';
+  const files = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf');
+  if (files.length > 0) handleRegulationUpload(files[0]);
+  else alert('PDF 파일만 업로드 가능합니다.');
+});
+regFileInput.addEventListener('change', () => {
+  if (regFileInput.files[0]) handleRegulationUpload(regFileInput.files[0]);
+  regFileInput.value = '';
+});
+
+async function handleRegulationUpload(file) {
+  // Supabase 연결 확인
+  if (!sbClient) {
+    alert('❌ Supabase가 연결되지 않았습니다.\n페이지를 새로고침하거나 Chrome에서 다시 열어보세요.');
+    return;
+  }
+
+  setProgress(5, `"${file.name}" 처리 시작...`);
+  showProgress(true);
+
+  try {
+    // 1. PDF 텍스트 추출
+    setProgress(20, 'PDF 텍스트 추출 중...');
+    const { text: rawText, pageCount, pageImages } = await extractPDF(file);
+    console.log(`📄 PDF 추출 완료: ${pageCount}페이지, 텍스트 ${rawText.length}자`);
+
+    // 2. Gemini로 규정 분석 (최대 3회 재시도)
+    setProgress(50, 'AI가 규정 내용을 분석하고 있습니다...');
+    let extractedRules = '';
+    let geminiOk = false;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        setProgress(50, `AI 분석 중... (${attempt}/3회 시도)`);
+        extractedRules = await extractRulesWithGemini(file.name, rawText, pageImages);
+        console.log(`🤖 Gemini 분석 완료 (${attempt}차 시도): ${extractedRules.length}자`);
+        geminiOk = true;
+        break;
+      } catch(geminiErr) {
+        console.warn(`⚠️ Gemini ${attempt}차 시도 실패:`, geminiErr.message);
+        if (attempt < 3) {
+          setProgress(50, `AI 서버 혼잡 — ${attempt === 1 ? 5 : 10}초 후 재시도...`);
+          await new Promise(r => setTimeout(r, attempt === 1 ? 5000 : 10000));
+        } else {
+          // 3회 모두 실패 → 원문 텍스트로 대체 저장
+          extractedRules = rawText.substring(0, 8000) || '(AI 분석 실패 — 직접 내용 확인 필요)';
+          alert('⚠️ AI 분석 서버가 일시적으로 혼잡합니다.\nPDF 원문 텍스트로 저장합니다.\n나중에 관리자 페이지에서 규정을 다시 등록하면 AI 분석이 가능합니다.');
+        }
+      }
+    }
+
+    // 3. Supabase Storage에 PDF 업로드
+    setProgress(80, 'PDF 파일을 서버에 저장 중...');
+    // 한글·공백·특수문자 제거 (Storage key는 ASCII만 허용)
+    const safeName = file.name
+      .replace(/[^\x00-\x7F]/g, '')   // 비ASCII(한글 등) 제거
+      .replace(/\s+/g, '_')            // 공백 → 언더스코어
+      .replace(/[^a-zA-Z0-9._-]/g, '') // 나머지 특수문자 제거
+      || 'regulation';                  // 이름이 완전히 비면 기본값
+    const filePath = `${Date.now()}_${safeName}.pdf`;
+    console.log('📤 Storage 업로드 시작:', filePath);
+    const { error: storageError } = await sbClient.storage
+      .from('regulations')
+      .upload(filePath, file, { contentType: 'application/pdf' });
+    if (storageError) {
+      console.error('❌ Storage 오류:', storageError);
+      throw new Error(`Storage 업로드 실패: ${storageError.message}`);
+    }
+    console.log('✅ Storage 업로드 완료');
+
+    // 4. DB에 규정 정보 저장
+    setProgress(90, '데이터베이스에 저장 중...');
+    console.log('💾 DB 저장 시작...');
+    const { data: insertData, error: dbError } = await sbClient.from('regulations').insert({
+      file_name: file.name,
+      file_path: filePath,
+      file_size: file.size,
+      page_count: pageCount,
+      extracted_rules: extractedRules,
+      is_active: true
+    }).select();
+    if (dbError) {
+      console.error('❌ DB 오류:', dbError);
+      throw new Error(`DB 저장 실패: ${dbError.message}`);
+    }
+    console.log('✅ DB 저장 완료:', insertData);
+
+    setProgress(100, '완료!');
+    setTimeout(async () => {
+      showProgress(false);
+      await loadRegulations();
+      alert(`✅ "${file.name}" 규정이 성공적으로 등록되었습니다!\nAI가 ${pageCount}페이지에서 규정을 추출했습니다.`);
+    }, 800);
+
+  } catch(err) {
+    showProgress(false);
+    console.error('❌ 규정 업로드 오류:', err);
+    alert(`오류가 발생했습니다:\n${err.message}\n\n자세한 내용은 F12 > Console 탭을 확인하세요.`);
+  }
+}
+
+async function extractPDF(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const pageCount = pdf.numPages;
+  let fullText = '';
+  const pageImages = [];
+
+  for (let i = 1; i <= Math.min(pageCount, 15); i++) {
+    const page = await pdf.getPage(i);
+
+    // 텍스트 추출
+    const textContent = await page.getTextContent();
+    const pageText = textContent.items.map(item => item.str).join(' ').trim();
+    if (pageText) fullText += `\n--- ${i}페이지 ---\n${pageText}`;
+
+    // 이미지 렌더링 (처음 8페이지만)
+    if (i <= 8) {
+      const viewport = page.getViewport({ scale: 1.2 });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      pageImages.push({ base64: canvas.toDataURL('image/jpeg', 0.75).split(',')[1], page: i });
+    }
+  }
+
+  return { text: fullText, pageCount, pageImages };
+}
+
+async function extractRulesWithGemini(fileName, rawText, pageImages) {
+  const parts = [];
+
+  const prompt = `당신은 VMD 규정 분석 전문가입니다.
+아래는 "${fileName}" 파일의 내용입니다.
+이 파일에서 VMD(시각적 상품 진열) 관련 모든 규정을 빠짐없이 추출해 주세요.
+
+각 규정은 다음 형식으로 정리해 주세요:
+[페이지 정보 또는 섹션명]
+• 규정 내용 1
+• 규정 내용 2
+...
+
+추출된 텍스트:
+${rawText.substring(0, 8000)}
+
+위 텍스트와 함께 첨부된 PDF 페이지 이미지도 참고하여 텍스트로 표현되지 않은 규정(이미지, 도식, 예시 사진 등)도 설명해 주세요.
+규정이 아닌 내용(회사 소개, 목차, 페이지 번호 등)은 제외하세요.
+반드시 한국어로 작성하세요.`;
+
+  parts.push({ text: prompt });
+  pageImages.forEach(pi => {
+    parts.push({ inline_data: { mime_type: 'image/jpeg', data: pi.base64 } });
+  });
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts }] })
+    }
+  );
+
+  if (!res.ok) {
+    const e = await res.json();
+    throw new Error(`Gemini API 오류: ${e.error?.message}`);
+  }
+
+  const data = await res.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || rawText.substring(0, 5000);
+}
+
+async function loadRegulations() {
+  const listEl = document.getElementById('reg-list');
+  if (!sbClient) {
+    listEl.innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><p>Supabase 연결 실패<br>페이지를 새로고침해 주세요.</p></div>';
+    return;
+  }
+  try {
+    const { data, error } = await sbClient
+      .from('regulations')
+      .select('*')
+      .order('uploaded_at', { ascending: false });
+
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
+      listEl.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><p>등록된 규정이 없습니다.<br>위에서 PDF를 업로드해 주세요.</p></div>';
+      return;
+    }
+
+    listEl.innerHTML = data.map(r => {
+      const date = new Date(r.uploaded_at).toLocaleString('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+      const size = r.file_size ? `${(r.file_size/1024/1024).toFixed(1)}MB` : '';
+      const statusClass = r.is_active ? 'reg-active' : 'reg-inactive';
+      const statusText = r.is_active ? '활성' : '비활성';
+
+      return `<div class="reg-item" id="reg-${r.id}">
+        <div class="reg-icon">📄</div>
+        <div class="reg-info">
+          <div class="reg-name" title="${r.file_name}">${r.file_name}</div>
+          <div class="reg-meta">${date} · ${r.page_count}페이지 · ${size}</div>
+        </div>
+        <span class="reg-status ${statusClass}">${statusText}</span>
+        <div class="reg-actions">
+          <button class="btn btn-outline btn-sm" onclick="viewRegulationRules(${r.id}, '${r.file_name.replace(/'/g,"\\'")}')">규정 보기</button>
+          <button class="btn btn-outline btn-sm" onclick="toggleRegulation(${r.id}, ${r.is_active})">${r.is_active ? '비활성화' : '활성화'}</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteRegulation(${r.id}, '${r.file_name.replace(/'/g,"\\'")}')">삭제</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    console.error(e);
+    document.getElementById('reg-list').innerHTML = `<div class="empty-state"><p>로드 실패: ${e.message}</p></div>`;
+  }
+}
+
+async function viewRegulationRules(id, fileName) {
+  const { data } = await sbClient.from('regulations').select('extracted_rules').eq('id', id).single();
+  document.getElementById('feedback-modal-title').textContent = `📄 ${fileName} - 추출된 규정`;
+  document.getElementById('feedback-modal-content').textContent = data?.extracted_rules || '추출된 규정이 없습니다.';
+  document.getElementById('feedback-modal').classList.remove('hidden');
+}
+
+async function toggleRegulation(id, isActive) {
+  const { error } = await sbClient.from('regulations').update({ is_active: !isActive }).eq('id', id);
+  if (!error) loadRegulations();
+}
+
+async function deleteRegulation(id, fileName) {
+  if (!confirm(`"${fileName}" 규정을 삭제하시겠습니까?\n삭제 후 AI 분석에 이 규정이 사용되지 않습니다.`)) return;
+  const { data } = await sbClient.from('regulations').select('file_path').eq('id', id).single();
+  if (data?.file_path) await sbClient.storage.from('regulations').remove([data.file_path]);
+  await sbClient.from('regulations').delete().eq('id', id);
+  loadRegulations();
+}
+
+// ============================================================
+// 통계 / 점검 현황
+// ============================================================
+async function loadStatistics() {
+  if (!sbClient) return;
+  try {
+    const { data } = await sbClient.from('submissions').select('status');
+    if (!data) return;
+    document.getElementById('stat-total').textContent = data.length;
+    document.getElementById('stat-submitted').textContent = data.filter(d=>d.status==='submitted').length;
+    document.getElementById('stat-needs').textContent = data.filter(d=>d.status==='needs_revision').length;
+    document.getElementById('stat-approved').textContent = data.filter(d=>d.status==='approved').length;
+  } catch(e) { console.error(e); }
+}
+
+async function loadSubmissions() {
+  if (!sbClient) return;
+  try {
+    const { data, error } = await sbClient
+      .from('submissions')
+      .select('*')
+      .order('submitted_at', { ascending: false });
+
+    if (error) throw error;
+    allSubmissions = data || [];
+    filteredSubmissions = [...allSubmissions];
+    currentPage = 1;
+    renderTable();
+  } catch(e) {
+    document.getElementById('submissions-tbody').innerHTML =
+      `<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--danger);">오류: ${e.message}</td></tr>`;
+  }
+}
+
+function applyFilters() {
+  const from = document.getElementById('filter-from').value;
+  const to = document.getElementById('filter-to').value;
+  const org = document.getElementById('filter-org').value;
+  const team = document.getElementById('filter-team').value;
+  const status = document.getElementById('filter-status').value;
+  const store = document.getElementById('filter-store').value.trim();
+
+  filteredSubmissions = allSubmissions.filter(s => {
+    const dt = new Date(s.submitted_at);
+    if (from && dt < new Date(from)) return false;
+    if (to && dt > new Date(to + 'T23:59:59')) return false;
+    if (org && s.org_name !== org) return false;
+    if (team && s.team_name !== team) return false;
+    if (status && s.status !== status) return false;
+    if (store && !s.store_name.includes(store)) return false;
+    return true;
+  });
+
+  currentPage = 1;
+  renderTable();
+  loadStatistics();
+}
+
+function resetFilters() {
+  document.getElementById('filter-org').value = '';
+  document.getElementById('filter-team').innerHTML = '<option value="">전체</option>';
+  document.getElementById('filter-status').value = '';
+  document.getElementById('filter-store').value = '';
+  const today = new Date();
+  const threeMonthsAgo = new Date(today); threeMonthsAgo.setMonth(threeMonthsAgo.getMonth()-3);
+  document.getElementById('filter-to').value = today.toISOString().split('T')[0];
+  document.getElementById('filter-from').value = threeMonthsAgo.toISOString().split('T')[0];
+  filteredSubmissions = [...allSubmissions];
+  currentPage = 1;
+  renderTable();
+}
+
+function renderTable() {
+  const tbody = document.getElementById('submissions-tbody');
+  const total = filteredSubmissions.length;
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const pageData = filteredSubmissions.slice(start, start + PAGE_SIZE);
+
+  document.getElementById('result-count').textContent = `총 ${total}건 (${currentPage}/${totalPages}페이지)`;
+
+  if (total === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-muted);">검색 결과가 없습니다.</td></tr>';
+    document.getElementById('pagination').innerHTML = '';
+    return;
+  }
+
+  tbody.innerHTML = pageData.map((s, i) => {
+    const rowNum = start + i + 1;
+    const date = new Date(s.submitted_at).toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+    const statusMap = { submitted:'검토 대기', needs_revision:'수정 필요', approved:'승인' };
+    const statusLabel = statusMap[s.status] || s.status;
+    const photoCnt = (s.photo_paths||[]).length;
+
+    return `<tr>
+      <td>${rowNum}</td>
+      <td style="white-space:nowrap;">${date}</td>
+      <td>${s.org_name}</td>
+      <td>${s.team_name}</td>
+      <td><strong>${s.store_name}</strong></td>
+      <td style="text-align:center;">${photoCnt}장</td>
+      <td><span class="status-badge status-${s.status}">${statusLabel}</span></td>
+      <td>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;">
+          ${s.ai_feedback ? `<button class="btn btn-outline btn-sm" onclick="viewFeedback(${s.id})">결과보기</button>` : ''}
+          <select onchange="updateStatus(${s.id}, this.value)" style="padding:4px 6px;font-size:11px;border:1px solid var(--border);border-radius:5px;">
+            <option value="">상태변경</option>
+            <option value="submitted">검토 대기</option>
+            <option value="needs_revision">수정 필요</option>
+            <option value="approved">승인</option>
+          </select>
+          <button class="btn btn-outline btn-sm" onclick="openNoteModal(${s.id}, '${(s.admin_note||'').replace(/'/g,"\\'")}')">📝</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  renderPagination(totalPages);
+}
+
+function renderPagination(totalPages) {
+  const pag = document.getElementById('pagination');
+  if (totalPages <= 1) { pag.innerHTML = ''; return; }
+
+  let html = '';
+  const maxShow = 7;
+  let startPage = Math.max(1, currentPage - Math.floor(maxShow/2));
+  let endPage = Math.min(totalPages, startPage + maxShow - 1);
+  if (endPage - startPage < maxShow - 1) startPage = Math.max(1, endPage - maxShow + 1);
+
+  if (currentPage > 1) html += `<button class="page-btn" onclick="goPage(${currentPage-1})">‹</button>`;
+  for (let p = startPage; p <= endPage; p++) {
+    html += `<button class="page-btn ${p===currentPage?'active':''}" onclick="goPage(${p})">${p}</button>`;
+  }
+  if (currentPage < totalPages) html += `<button class="page-btn" onclick="goPage(${currentPage+1})">›</button>`;
+  pag.innerHTML = html;
+}
+
+function goPage(p) { currentPage = p; renderTable(); window.scrollTo({top:0,behavior:'smooth'}); }
+
+async function viewFeedback(id) {
+  const s = allSubmissions.find(x => x.id === id);
+  if (!s) return;
+  const date = new Date(s.submitted_at).toLocaleString('ko-KR');
+  document.getElementById('feedback-modal-title').textContent = `📋 ${s.store_name} · ${date}`;
+  document.getElementById('feedback-modal-content').textContent = s.ai_feedback || '피드백 없음';
+  document.getElementById('feedback-modal').classList.remove('hidden');
+}
+
+async function updateStatus(id, newStatus) {
+  if (!newStatus) return;
+  const { error } = await sbClient.from('submissions').update({
+    status: newStatus,
+    reviewed_at: new Date().toISOString()
+  }).eq('id', id);
+
+  if (!error) {
+    const idx = allSubmissions.findIndex(s => s.id === id);
+    if (idx !== -1) { allSubmissions[idx].status = newStatus; allSubmissions[idx].reviewed_at = new Date().toISOString(); }
+    const fIdx = filteredSubmissions.findIndex(s => s.id === id);
+    if (fIdx !== -1) { filteredSubmissions[fIdx].status = newStatus; }
+    renderTable();
+    loadStatistics();
+  }
+}
+
+function openNoteModal(id, currentNote) {
+  editNoteId = id;
+  document.getElementById('note-input').value = currentNote;
+  document.getElementById('note-modal').classList.remove('hidden');
+}
+
+document.getElementById('save-note-btn').addEventListener('click', async () => {
+  if (!editNoteId) return;
+  const note = document.getElementById('note-input').value;
+  const { error } = await sbClient.from('submissions').update({ admin_note: note }).eq('id', editNoteId);
+  if (!error) {
+    const idx = allSubmissions.findIndex(s => s.id === editNoteId);
+    if (idx !== -1) allSubmissions[idx].admin_note = note;
+    document.getElementById('note-modal').classList.add('hidden');
+    alert('저장되었습니다.');
+  }
+});
+
+// ============================================================
+// 엑셀 다운로드
+// ============================================================
+function exportToExcel() {
+  if (filteredSubmissions.length === 0) { alert('다운로드할 데이터가 없습니다.'); return; }
+
+  const statusMap = { submitted:'검토 대기', needs_revision:'수정 필요', approved:'승인' };
+  const rows = filteredSubmissions.map(s => ({
+    '제출일시': new Date(s.submitted_at).toLocaleString('ko-KR'),
+    '담당': s.org_name,
+    '팀': s.team_name,
+    '매장명': s.store_name,
+    '사진수': (s.photo_paths||[]).length,
+    '상태': statusMap[s.status] || s.status,
+    'AI 피드백': (s.ai_feedback||'').replace(/<[^>]*>/g,'').substring(0, 2000),
+    '관리자 메모': s.admin_note || '',
+    '검토일시': s.reviewed_at ? new Date(s.reviewed_at).toLocaleString('ko-KR') : ''
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [
+    {wch:20},{wch:16},{wch:16},{wch:20},{wch:8},{wch:12},{wch:60},{wch:30},{wch:20}
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'VMD 점검 이력');
+
+  const today = new Date().toISOString().split('T')[0];
+  XLSX.writeFile(wb, `VMD_점검_이력_${today}.xlsx`);
+}
+
+// ============================================================
+// 프로그레스 바
+// ============================================================
+function showProgress(show) {
+  document.getElementById('upload-progress').classList.toggle('hidden', !show);
+}
+function setProgress(pct, label) {
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-label').textContent = label;
+}
+
+// ============================================================
+// 모달 닫기
+// ============================================================
+['feedback-modal','note-modal'].forEach(id => {
+  document.getElementById(id).addEventListener('click', function(e) {
+    if (e.target === this) this.classList.add('hidden');
+  });
+});
+</script>
+</body>
+</html>

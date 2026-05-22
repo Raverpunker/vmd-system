@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>VMD 점검 시스템 | PS&amp;마케팅</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <style>
+    :root {
+      --primary: #E8340E;
+      --primary-dark: #C02A0B;
+      --primary-light: #FFF0ED;
+      --secondary: #2C3E50;
+      --success: #27AE60;
+      --warning: #F39C12;
+      --danger: #E74C3C;
+      --bg: #F0F2F5;
+      --card: #FFFFFF;
+      --border: #E0E4EA;
+      --text: #1A1A2E;
+      --text-muted: #6B7280;
+      --radius: 12px;
+      --shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Noto Sans KR', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* HEADER */
+    header {
+      background: linear-gradient(135deg, var(--primary) 0%, #FF5722 100%);
+      color: white; padding: 16px 20px;
+      display: flex; align-items: center; gap: 14px;
+      box-shadow: 0 2px 8px rgba(232,52,14,0.3);
+      position: sticky; top: 0; z-index: 100;
+    }
+    .header-icon { font-size: 28px; }
+    .header-info { flex: 1; }
+    .header-info h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+    .header-info p { font-size: 11px; opacity: 0.85; margin-top: 2px; }
+    .admin-btn {
+      background: rgba(255,255,255,0.2); color: white;
+      border: 1px solid rgba(255,255,255,0.4);
+      padding: 6px 14px; border-radius: 20px;
+      font-size: 12px; cursor: pointer; text-decoration: none;
+      transition: background 0.2s;
+    }
+    .admin-btn:hover { background: rgba(255,255,255,0.35); }
+
+    /* CONFIG WARNING */
+    .config-warning {
+      background: #FFF3CD; border-left: 4px solid var(--warning);
+      padding: 12px 16px; margin: 16px; border-radius: 8px;
+      font-size: 13px; display: none;
+    }
+    .config-warning.show { display: block; }
+
+    /* MAIN */
+    main { padding: 16px; max-width: 600px; margin: 0 auto; }
+
+    /* STEPPER */
+    .stepper {
+      display: flex; align-items: center; margin-bottom: 20px;
+      background: var(--card); border-radius: var(--radius);
+      padding: 12px; box-shadow: var(--shadow);
+    }
+    .step-item {
+      flex: 1; text-align: center; position: relative;
+    }
+    .step-item:not(:last-child)::after {
+      content: ''; position: absolute; top: 50%; right: -6px;
+      width: 12px; height: 2px; background: var(--border);
+      transform: translateY(-50%);
+    }
+    .step-item.active:not(:last-child)::after { background: var(--primary); }
+    .step-num {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: var(--border); color: var(--text-muted);
+      font-size: 12px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 4px;
+      transition: all 0.3s;
+    }
+    .step-item.active .step-num { background: var(--primary); color: white; }
+    .step-item.done .step-num { background: var(--success); color: white; }
+    .step-label { font-size: 11px; color: var(--text-muted); font-weight: 500; }
+    .step-item.active .step-label { color: var(--primary); font-weight: 700; }
+    .step-item.done .step-label { color: var(--success); }
+
+    /* CARD */
+    .card {
+      background: var(--card); border-radius: var(--radius);
+      padding: 20px; margin-bottom: 16px;
+      box-shadow: var(--shadow); border: 1px solid var(--border);
+    }
+    .card-title {
+      font-size: 16px; font-weight: 700; color: var(--secondary);
+      margin-bottom: 16px; padding-bottom: 12px;
+      border-bottom: 2px solid var(--primary-light);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .card-title .icon { font-size: 20px; }
+
+    /* FORM */
+    .form-group { margin-bottom: 14px; }
+    label {
+      display: block; font-size: 13px; font-weight: 600;
+      color: var(--secondary); margin-bottom: 6px;
+    }
+    select {
+      width: 100%; padding: 12px 14px; border: 1.5px solid var(--border);
+      border-radius: 8px; font-size: 14px; background: white;
+      color: var(--text); cursor: pointer; appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236B7280' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 14px center;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(232,52,14,0.1); }
+    select:disabled { background-color: #F9FAFB; color: var(--text-muted); cursor: not-allowed; }
+
+    /* BUTTONS */
+    .btn {
+      width: 100%; padding: 14px; border: none; border-radius: 10px;
+      font-size: 15px; font-weight: 700; cursor: pointer;
+      transition: all 0.2s; letter-spacing: -0.2px;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary) 0%, #FF5722 100%);
+      color: white; box-shadow: 0 4px 12px rgba(232,52,14,0.3);
+    }
+    .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(232,52,14,0.4); }
+    .btn-primary:disabled { background: #D1D5DB; box-shadow: none; cursor: not-allowed; }
+    .btn-outline {
+      background: white; color: var(--secondary);
+      border: 1.5px solid var(--border); margin-top: 10px;
+    }
+    .btn-outline:hover { background: var(--bg); }
+    .btn-success { background: linear-gradient(135deg, var(--success), #2ECC71); color: white; }
+
+    /* UPLOAD AREA */
+    .upload-area {
+      border: 2px dashed var(--border); border-radius: 10px;
+      padding: 30px 20px; text-align: center; cursor: pointer;
+      transition: all 0.2s; background: var(--bg);
+      margin-bottom: 14px;
+    }
+    .upload-area:hover, .upload-area.dragover {
+      border-color: var(--primary); background: var(--primary-light);
+    }
+    .upload-area input[type=file] { display: none; }
+    .upload-icon { font-size: 40px; margin-bottom: 10px; }
+    .upload-text { font-size: 14px; font-weight: 600; color: var(--secondary); margin-bottom: 4px; }
+    .upload-subtext { font-size: 12px; color: var(--text-muted); }
+
+    /* PREVIEW */
+    .preview-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 8px; margin-bottom: 14px;
+    }
+    .preview-item {
+      position: relative; border-radius: 8px; overflow: hidden;
+      aspect-ratio: 1; border: 1.5px solid var(--border);
+    }
+    .preview-item img { width: 100%; height: 100%; object-fit: cover; }
+    .preview-remove {
+      position: absolute; top: 4px; right: 4px;
+      width: 22px; height: 22px; border-radius: 50%;
+      background: rgba(0,0,0,0.6); color: white;
+      border: none; cursor: pointer; font-size: 12px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .preview-count {
+      font-size: 12px; color: var(--text-muted); text-align: center;
+      margin-bottom: 8px;
+    }
+
+    /* LOADING */
+    .loading-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; z-index: 200;
+    }
+    .loading-overlay.hidden { display: none; }
+    .loading-card {
+      background: white; border-radius: 20px; padding: 32px 40px;
+      text-align: center; max-width: 280px;
+    }
+    .spinner {
+      width: 50px; height: 50px; border: 4px solid var(--primary-light);
+      border-top-color: var(--primary); border-radius: 50%;
+      animation: spin 0.8s linear infinite; margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-title { font-size: 15px; font-weight: 700; color: var(--secondary); margin-bottom: 6px; }
+    .loading-sub { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+    /* FEEDBACK */
+    .feedback-wrap { background: var(--bg); border-radius: 10px; padding: 16px; }
+    .feedback-wrap h3 { font-size: 14px; font-weight: 700; margin-bottom: 10px; }
+    .feedback-content {
+      font-size: 14px; line-height: 1.8; color: var(--text);
+      white-space: pre-wrap; word-break: break-word;
+    }
+    .feedback-meta {
+      font-size: 12px; color: var(--text-muted);
+      background: var(--bg); padding: 10px 14px;
+      border-radius: 8px; margin-top: 12px;
+      border-left: 3px solid var(--warning);
+    }
+    .feedback-section { margin-bottom: 20px; }
+    .feedback-section h3 {
+      font-size: 14px; font-weight: 700; padding: 8px 12px;
+      border-radius: 8px; margin-bottom: 8px;
+    }
+    .feedback-good h3 { background: #EDFBF4; color: var(--success); }
+    .feedback-bad h3 { background: #FFF3CD; color: #856404; }
+    .feedback-item {
+      background: white; border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px; margin-bottom: 8px;
+    }
+    .feedback-item .basis { font-size: 11px; color: var(--primary); font-weight: 600; margin-bottom: 4px; }
+    .feedback-item .rule { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; font-style: italic; border-left: 2px solid var(--border); padding-left: 8px; }
+    .feedback-item .issue { font-size: 13px; color: var(--text); }
+
+    /* STORE INFO BADGE */
+    .store-badge {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--primary-light); border: 1px solid rgba(232,52,14,0.2);
+      border-radius: 8px; padding: 10px 14px; margin-bottom: 16px;
+    }
+    .store-badge .badge-icon { font-size: 18px; }
+    .store-badge .badge-text { font-size: 13px; font-weight: 600; color: var(--primary); }
+
+    /* HISTORY */
+    .history-item {
+      border: 1px solid var(--border); border-radius: 10px;
+      padding: 14px; margin-bottom: 10px;
+      transition: box-shadow 0.2s;
+    }
+    .history-item:hover { box-shadow: var(--shadow); }
+    .history-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 8px;
+    }
+    .history-date { font-size: 12px; color: var(--text-muted); }
+    .status-badge {
+      font-size: 11px; font-weight: 600; padding: 3px 10px;
+      border-radius: 20px;
+    }
+    .status-submitted { background: #EFF6FF; color: #1D4ED8; }
+    .status-needs_revision { background: #FFF7ED; color: #C2410C; }
+    .status-approved { background: #ECFDF5; color: #065F46; }
+    .history-photos {
+      display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap;
+    }
+    .history-photo {
+      width: 56px; height: 56px; border-radius: 6px;
+      object-fit: cover; border: 1px solid var(--border);
+      cursor: pointer;
+    }
+    .history-feedback-preview {
+      font-size: 12px; color: var(--text-muted); margin-top: 8px;
+      display: -webkit-box; -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .history-empty {
+      text-align: center; padding: 30px 20px;
+      color: var(--text-muted); font-size: 14px;
+    }
+
+    /* MODAL */
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5); z-index: 300;
+      display: flex; align-items: flex-end;
+    }
+    .modal-overlay.hidden { display: none; }
+    .modal-sheet {
+      background: white; border-radius: 20px 20px 0 0;
+      padding: 20px; width: 100%; max-height: 80vh;
+      overflow-y: auto;
+    }
+    .modal-handle {
+      width: 40px; height: 4px; background: var(--border);
+      border-radius: 2px; margin: 0 auto 16px;
+    }
+    .modal-close {
+      float: right; background: var(--bg); border: none;
+      border-radius: 50%; width: 30px; height: 30px;
+      cursor: pointer; font-size: 16px;
+    }
+    .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 14px; }
+
+    /* UTILITIES */
+    .hidden { display: none !important; }
+    .text-center { text-align: center; }
+    .mt-8 { margin-top: 8px; }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+    .section-title {
+      font-size: 13px; font-weight: 700; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.5px;
+      margin-bottom: 12px;
+    }
+    .no-regulation-warn {
+      background: #FFF3CD; border: 1px solid #FBBF24;
+      border-radius: 8px; padding: 12px 16px;
+      font-size: 13px; color: #92400E; margin-bottom: 14px;
+    }
+
+    @media (min-width: 600px) {
+      main { padding: 24px; }
+      .card { padding: 28px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- CONFIG WARNING -->
+<div class="config-warning" id="config-warning">
+  ⚠️ <strong>설정 필요:</strong> index.html 파일 상단의 SUPABASE_URL, SUPABASE_ANON_KEY, GEMINI_API_KEY를 입력해야 합니다.
+  <a href="README.md" style="color: var(--warning);">설정 가이드 보기</a>
+</div>
+
+<!-- HEADER -->
+<header>
+  <div class="header-icon">🏪</div>
+  <div class="header-info">
+    <h1>VMD 점검 시스템</h1>
+    <p>PS&amp;마케팅(주) · SK텔레콤 공식 대리점</p>
+  </div>
+  <a href="admin.html" class="admin-btn">관리자</a>
+</header>
+
+<!-- LOADING OVERLAY -->
+<div class="loading-overlay hidden" id="loading-overlay">
+  <div class="loading-card">
+    <div class="spinner"></div>
+    <div class="loading-title">AI 분석 중...</div>
+    <div class="loading-sub" id="loading-msg">VMD 규정과 사진을 비교하고 있습니다.<br>잠시만 기다려주세요.</div>
+  </div>
+</div>
+
+<!-- FEEDBACK MODAL -->
+<div class="modal-overlay hidden" id="feedback-modal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="document.getElementById('feedback-modal').classList.add('hidden')">✕</button>
+    <div class="modal-title">AI 분석 결과 상세</div>
+    <div id="modal-feedback-content" class="feedback-content" style="font-size:13px; line-height:1.8;"></div>
+  </div>
+</div>
+
+<main>
+  <!-- STEPPER -->
+  <div class="stepper">
+    <div class="step-item active" id="si-1">
+      <div class="step-num">1</div>
+      <div class="step-label">매장 선택</div>
+    </div>
+    <div class="step-item" id="si-2">
+      <div class="step-num">2</div>
+      <div class="step-label">사진 업로드</div>
+    </div>
+    <div class="step-item" id="si-3">
+      <div class="step-num">3</div>
+      <div class="step-label">결과 확인</div>
+    </div>
+  </div>
+
+  <!-- STEP 1: 매장 선택 -->
+  <div class="card" id="step-1">
+    <div class="card-title"><span class="icon">🏬</span> 매장 선택</div>
+    <div class="form-group">
+      <label for="org-select">담당 선택</label>
+      <select id="org-select">
+        <option value="">-- 담당을 선택하세요 --</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="team-select">팀 선택</label>
+      <select id="team-select" disabled>
+        <option value="">-- 팀을 선택하세요 --</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="store-select">매장 선택</label>
+      <select id="store-select" disabled>
+        <option value="">-- 매장을 선택하세요 --</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" id="btn-next-1" disabled>다음 단계 →</button>
+  </div>
+
+  <!-- STEP 2: 사진 업로드 -->
+  <div class="card hidden" id="step-2">
+    <div class="card-title"><span class="icon">📷</span> VMD 사진 업로드</div>
+    <div class="store-badge" id="selected-store-badge">
+      <span class="badge-icon">📍</span>
+      <span class="badge-text" id="selected-store-text"></span>
+    </div>
+    <div id="no-regulation-warn" class="no-regulation-warn hidden">
+      ⚠️ 현재 등록된 VMD 규정이 없습니다. 관리자에게 규정 등록을 요청해주세요.
+    </div>
+    <div class="upload-area" id="upload-area">
+      <input type="file" id="photo-input" multiple accept="image/*,image/heic">
+      <div class="upload-icon">📸</div>
+      <div class="upload-text">사진을 드래그하거나 탭하여 선택</div>
+      <div class="upload-subtext">JPG, PNG, HEIC · 최대 5장 · 각 10MB 이하</div>
+    </div>
+    <div class="preview-count hidden" id="preview-count"></div>
+    <div class="preview-grid" id="preview-grid"></div>
+    <button class="btn btn-primary" id="btn-submit" disabled>🤖 AI 분석 시작</button>
+    <button class="btn btn-outline" id="btn-back-1">← 매장 다시 선택</button>
+  </div>
+
+  <!-- STEP 3: 결과 -->
+  <div class="card hidden" id="step-3">
+    <div class="card-title"><span class="icon">📋</span> AI 분석 결과</div>
+    <div class="store-badge" id="result-store-badge">
+      <span class="badge-icon">📍</span>
+      <span class="badge-text" id="result-store-text"></span>
+    </div>
+    <div id="result-photos" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;"></div>
+    <div class="feedback-wrap">
+      <div id="feedback-output" class="feedback-content"></div>
+    </div>
+    <div class="feedback-meta" style="margin-top:12px;">
+      ⚠️ 본 피드백은 AI가 자동으로 분석한 것으로, 사람의 판단보다 부정확할 수 있습니다.
+      규정 원문을 직접 확인하시고, 의문 사항은 담당자에게 문의해주세요.
+    </div>
+    <button class="btn btn-success" id="btn-new" style="margin-top:16px;">새 점검 시작하기</button>
+  </div>
+
+  <!-- HISTORY -->
+  <div class="card hidden" id="history-card">
+    <div class="card-title"><span class="icon">📅</span> <span id="history-store-name"></span> 점검 이력</div>
+    <div id="history-list"></div>
+  </div>
+</main>
+
+<script>
+// ============================================================
+// ⚙️ 설정 - 반드시 본인 환경에 맞게 변경하세요!
+// ============================================================
+const SUPABASE_URL     = 'https://sdscvhfzgiatxobkotsl.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkc2N2aGZ6Z2lhdHhvYmtvdHNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0MjM0MDcsImV4cCI6MjA5NDk5OTQwN30.gI4YnK4kE3-2UuNKJKPnwYJ91_Uhr6YJzqx7XkApfGw';
+const GEMINI_API_KEY   = 'AIzaSyAJT0KjDJXidG-t0vJe6uNa56QRhFMXTZY';
+
+// ============================================================
+// 매장 데이터 (조직명 / 팀명 / 매장명)
+// ============================================================
+const STORE_DATA = {
+  "대구영업담당": {
+    "구미소매팀": ["형곡점","형곡네거리점","원호점","봉곡점","김천점","김천신음점","구미점","구미확장단지점","옥계점","구미역점","구평점","경북도청점","인동점","석적점","PS&M (진평점)","PS&M (안동지점)"],
+    "대구소매팀": ["수성센터","북대구센터","칠곡센터","칠곡동천점","수성신천점","율하점","동호점","경산오거리점","사동점","동대구신세계점","용산점","광장코아점","다사점","상인역점","상인점","칠곡중앙점","신월성점","동성로센터","범물점","대곡역점","대구CV센터점","경산옥곡점","신당점","대구은행역점","파동점","PS&M (이시아폴리스점)","PS&M (경산시장점)"],
+    "포항소매팀": ["경주황성점","황성동행점","경주점","경주용황점","영천점","문덕점","오천점","포항중앙상가점","포항이동점","포항중앙상가점","양덕네거리점","PS&M (포항지점)","PS&M (경주중앙점)"]
+  },
+  "부산영업담당": {
+    "경남소매팀": ["상남센터","진영점","진주센터","합성점","팔용점","진해석동점","거제고현점","장유점","장유코아점","김해내동점","외동점","상남중앙직영점","거제고현점","시티세븐점","PS&M (경상대점)","PS&M (대안점)","PS&M (용원1호점)","PS&M (합성투자점)","PS&M (진주지점)","PS&M (도계점)"],
+    "동부산소매팀": ["구서점","두실역점","장전역점","서동점","남천점","수영점","경성대점","동래역점","부산대점","부산대정문점","덕천점","화명역점","양산범어점","양산점","부산대정문점","동래CV센터점","광안역점","양산증산점"],
+    "서부산소매팀": ["하단점","장림점","명지점","동대신점","부평점","수정점","서면롯데점","당감점","개금점","전포점","연산점","사직점","서면점","화명점","냉정점","부산CV센터점","롯데광복점","서면4호점","남포점","장림2호점","부산서면1번가점","하단역점","덕포점"],
+    "울산소매팀": ["기장점","기장시장점","반송점","해운대점","센텀점","반여점","재송점","신정점","성남점","삼산점","동울산점","달동점","공업탑점","성남중앙점"]
+  },
+  "서부영업담당": {
+    "광주소매팀": ["광주상무점","동림점","수완점","운남점","수완장덕점","신창점","나주혁신점","광주일곡점","운암점","충장로점","상무역점","광주풍암점","광주CV센터점","충장점","PS&M (노대점)","PS&M (문화전당점)","PS&M (광주조대점)"],
+    "전남소매팀": ["목포본점","목포역점","하당본점","하당꽃길점","신기점","연향로점","순천조례점","여수중앙점","목포하당점","PS&M (목포지점)","PS&M (목포용해점)"],
+    "전북소매팀": ["군산점","수송본점","모현본점","모현점","영등본점","전북대점","서신점","한옥마을점","삼천본점","인후점","전주CV센터점","화산점","익산영등점","삼천점","PS&M (신시가지점)","PS&M (전주효자점)"],
+    "제주팀": ["노형타워점","제주연동점","외도점","서귀포중앙점","제주중문점","서귀포올레시장점","제주광양점","제주시청점","PS&M (제주화북점)"]
+  },
+  "수도권영업담당": {
+    "강남소매팀": ["대치점","신논현역점","압구정역점","뱅뱅사거리점","교대역점","이수역점","신대방삼거리역점","상도역점","신림역점","가산브이원점","가산디지털점","금천점","구로점","대림점","신도림점","고척점","한티역점","선릉역점","역삼역점","남부터미널점","강남CV센터점","개봉점","강남구청역점","보라매지점","가산역점","PS&M (이수역점)","PS&M (코엑스점)","PS&M (구로점)"],
+    "강동소매팀": ["천호사거리점","강동역점","고덕역점","하남미사점","잠실점","잠실롯데점","석촌역점","개롱역점","분당서현역점","분당수내점","신야탑점","미금역사거리점","수지구청역점","기흥역점","기흥점","동백점","미금역점","천호사거리점(폐점)","오금역점","천호역점","하남점","PS&M (경안점)","천호점","미금역사거리점"],
+    "강북소매팀": ["의정부중앙로점","가능역점","의정부역점","미아역점","미아점","삼양점","중계점","수유점","망우동점","사가정역점","마들역점","구리역본점","퇴계원점","중화역점","신내점","의정부행복로점","미아사거리점","공릉점","지행점","상봉역점","장현점","PS&M (의정부지점)","PS&M (회룡역점)"],
+    "강서소매팀": ["망원역점","홍대역점","신촌점","가재울점","용산역점","마포점","마포도화점","마포잼플레이스","강서구청점","등촌역점","화곡역점","IFC점","당산점","문래점","신촌서강점","이대역점","당산역점","PS&M (신촌지점)","PS&M (발산역점)"],
+    "강원소매팀": ["석사점","거두점","춘천명동점","강릉점","교동택지점","강릉중앙점","문화의거리점","원주점","원주중앙점","원주단계점","동해점","삼척점","단구점","원주터미널점","강원대점","속초본점","강릉금학점","PS&M (춘천지점)","PS&M (상지대점)"],
+    "고양소매팀": ["화정역점","행신점","파주금릉역점","식사점","풍동점","일산본점","주엽역점","홍제점","구산역점","연서점","불광중앙점","불광역점","김포시청역점","김포사우점","풍무역점","김포고촌역점","홍제역점","금릉역로데오점","화정점","일산지점","PS&M (응암점)","PS&M (파주 와동점)"],
+    "서부소매팀": ["소사점","역곡사거리점","원종역점","부천역점","상동역점","신중동역점","송내역점","배곧신도시점","정왕점","선부점","고잔점","본오점","광명사거리역점","소하점","안양일번가점","동편마을점","목동역점","안산중앙점","성곡사거리점","까치산점","역곡역점","PS&M (목감점)","안산중앙롯데점","정왕역점"],
+    "수원소매팀": ["수원스타필드점","북수원본점","조원점","수원역점","인계점","아주대점","곡반점","영통점","영통역사거리점","망포점","봉담점","향남점","구운점","호매실점","동탄타임테라스점","오산대역점","오산역점","서정점","평택 이충점","안성스타필드점","남문점","평택 지산점","권선점","벽적골점","수원CV센터점","수원역점","PS&M (평택 소사벌점)"],
+    "인천소매팀": ["검단점","당하점","청라점","루원시티점","영종도점","시민공원역점","주안역점","석바위시장점","동인천점","도화앨리웨이점","서창지구점","구월점","송도점","센트럴파크점","논현라피에스타점","인천논현점","계산역점","작전역점","삼산미래타운점","신천역점","인하대점","부평역점","간석점","인천연수점","인천논현점","인천CV센터점","PS&M (만수점)","PS&M (인천논현역점)"],
+    "중앙소매팀": ["광화문점","종로센터","종로공평점","을지로점","무교점","대학로점","한성대점","길음역점","성신여대점","왕십리점","신당역점","경희대점","전농점","시립대점","명동본점","서소문점","보신각점","동묘역점","숙대입구점","명동대로점","종로점","중곡점","상왕십리점","PS&M (대학로점)","광화문점","서울민자역사점","PS&M (동대문구청점)","청량리역점","PS&M (종로3가점)"]
+  },
+  "유통담당": {
+    "제휴영업팀": ["대전중앙로점","약수역점","방이역점","난곡점","외대점","안산 일동점","동암역점","신월점","상암점","상남점","삼천포점","화정점","반구점","광안점","서변점","영천영남점","해도점","용당점","금당점","무주점","효자점","삼척장윤점","정선사북점","춘천광장점","금산점","부여점","대동점","삼성점","대천점","괴산점","예산점","내포점","상안점","명지국제점","경주시청점","석적중리점","광양2호점","건대역점","방학동점","도동점","포항법원점","풍덕점","PS&M (국동점)","PS&M (제일점)","PS&M (뚝섬유원지역점)","PS&M (충효점)","PS&M (화원점)","PS&M (포항환호점)","PS&M (관문점)","PS&M (삼호점)","PS&M (진월점)","PS&M (봉화점)","PS&M (신대명점)"]
+  },
+  "중부영업담당": {
+    "대전소매팀": ["세종애플점","아름점","유성온천점","노은점","둔산본점","선사점","도안점","관저점","가오점","논산터미널점","둔산타임월드점","세종점","대전터미널점","대전CV센터점","PS&M (괴정점)"],
+    "충청소매팀": ["쌍용점","천안청당점","만남광장점","두정점","천안신불당점","아산온천점","탕정점","청주지웰시티점","청주금천점","오창점","연수점","불당점","충주호암점","쌍용사거리점","배방점","청주CV센터점","두정본점","성안길점","PS&M (직산점)","PS&M (제천중앙로점)"]
+  }
+};
+
+// ============================================================
+// 초기화
+// ============================================================
+let sbClient = null;  // Supabase 클라이언트
+let selectedFiles = [];
+let currentOrg = '', currentTeam = '', currentStore = '';
+
+function initApp() {
+  const configured = SUPABASE_URL !== 'YOUR_SUPABASE_URL' && GEMINI_API_KEY !== 'YOUR_GEMINI_API_KEY';
+  if (!configured) {
+    document.getElementById('config-warning').classList.add('show');
+  }
+
+  // Supabase 초기화 (실패해도 AI 분석은 동작)
+  try {
+    const lib = window.supabase;
+    if (lib && typeof lib.createClient === 'function') {
+      sbClient = lib.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
+  } catch(e) {
+    console.warn('Supabase 초기화 실패 (AI 분석은 계속 가능):', e);
+  }
+
+  populateOrgs();
+  setupEventListeners();
+}
+
+// ============================================================
+// 드롭다운 로직
+// ============================================================
+function populateOrgs() {
+  const sel = document.getElementById('org-select');
+  Object.keys(STORE_DATA).sort().forEach(org => {
+    sel.add(new Option(org, org));
+  });
+}
+
+document.getElementById('org-select').addEventListener('change', function() {
+  currentOrg = this.value;
+  const teamSel = document.getElementById('team-select');
+  const storeSel = document.getElementById('store-select');
+  teamSel.innerHTML = '<option value="">-- 팀을 선택하세요 --</option>';
+  storeSel.innerHTML = '<option value="">-- 매장을 선택하세요 --</option>';
+  teamSel.disabled = !currentOrg;
+  storeSel.disabled = true;
+  document.getElementById('btn-next-1').disabled = true;
+
+  if (currentOrg && STORE_DATA[currentOrg]) {
+    Object.keys(STORE_DATA[currentOrg]).sort().forEach(team => {
+      teamSel.add(new Option(team, team));
+    });
+    teamSel.disabled = false;
+  }
+});
+
+document.getElementById('team-select').addEventListener('change', function() {
+  currentTeam = this.value;
+  const storeSel = document.getElementById('store-select');
+  storeSel.innerHTML = '<option value="">-- 매장을 선택하세요 --</option>';
+  storeSel.disabled = !currentTeam;
+  document.getElementById('btn-next-1').disabled = true;
+
+  if (currentOrg && currentTeam && STORE_DATA[currentOrg][currentTeam]) {
+    STORE_DATA[currentOrg][currentTeam].forEach(store => {
+      storeSel.add(new Option(store, store));
+    });
+    storeSel.disabled = false;
+  }
+});
+
+document.getElementById('store-select').addEventListener('change', function() {
+  currentStore = this.value;
+  document.getElementById('btn-next-1').disabled = !currentStore;
+});
+
+// ============================================================
+// 스텝 이동
+// ============================================================
+function goToStep(n) {
+  [1,2,3].forEach(i => {
+    document.getElementById(`step-${i}`).classList.add('hidden');
+    const si = document.getElementById(`si-${i}`);
+    si.classList.remove('active','done');
+    if (i < n) si.classList.add('done');
+    if (i === n) si.classList.add('active');
+  });
+  document.getElementById(`step-${n}`).classList.remove('hidden');
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+document.getElementById('btn-next-1').addEventListener('click', async () => {
+  document.getElementById('selected-store-text').textContent = `${currentOrg} > ${currentTeam} > ${currentStore}`;
+  goToStep(2);
+  // 규정 등록 여부 확인
+  try {
+    if (!sbClient) return;
+    const { data } = await sbClient.from('regulations').select('id').eq('is_active', true).limit(1);
+    if (!data || data.length === 0) {
+      document.getElementById('no-regulation-warn').classList.remove('hidden');
+    } else {
+      document.getElementById('no-regulation-warn').classList.add('hidden');
+    }
+  } catch(e) { /* ignore */ }
+});
+
+document.getElementById('btn-back-1').addEventListener('click', () => {
+  goToStep(1);
+  selectedFiles = [];
+  document.getElementById('preview-grid').innerHTML = '';
+  document.getElementById('btn-submit').disabled = true;
+  document.getElementById('preview-count').classList.add('hidden');
+});
+
+document.getElementById('btn-new').addEventListener('click', () => {
+  selectedFiles = [];
+  document.getElementById('preview-grid').innerHTML = '';
+  document.getElementById('btn-submit').disabled = true;
+  document.getElementById('preview-count').classList.add('hidden');
+  document.getElementById('history-card').classList.add('hidden');
+  goToStep(1);
+});
+
+// ============================================================
+// 사진 업로드
+// ============================================================
+const uploadArea = document.getElementById('upload-area');
+const photoInput = document.getElementById('photo-input');
+
+uploadArea.addEventListener('click', () => photoInput.click());
+uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+uploadArea.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadArea.classList.remove('dragover');
+  handleFiles(Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/')));
+});
+photoInput.addEventListener('change', () => {
+  handleFiles(Array.from(photoInput.files));
+  photoInput.value = '';
+});
+
+function handleFiles(files) {
+  const MAX = 5;
+  const remaining = MAX - selectedFiles.length;
+  if (remaining <= 0) { alert('최대 5장까지 업로드 가능합니다.'); return; }
+  const toAdd = files.slice(0, remaining);
+  if (files.length > remaining) alert(`최대 5장까지 업로드 가능합니다. 처음 ${remaining}장만 추가됩니다.`);
+  toAdd.forEach(f => {
+    if (f.size > 10 * 1024 * 1024) { alert(`${f.name}: 파일 크기가 10MB를 초과합니다.`); return; }
+    selectedFiles.push(f);
+  });
+  renderPreviews();
+}
+
+function renderPreviews() {
+  const grid = document.getElementById('preview-grid');
+  const countEl = document.getElementById('preview-count');
+  grid.innerHTML = '';
+  selectedFiles.forEach((f, idx) => {
+    const url = URL.createObjectURL(f);
+    const item = document.createElement('div');
+    item.className = 'preview-item';
+    item.innerHTML = `<img src="${url}" alt="사진 ${idx+1}">
+      <button class="preview-remove" onclick="removePhoto(${idx})">✕</button>`;
+    grid.appendChild(item);
+  });
+  if (selectedFiles.length > 0) {
+    countEl.textContent = `${selectedFiles.length}장 선택됨`;
+    countEl.classList.remove('hidden');
+    document.getElementById('btn-submit').disabled = false;
+  } else {
+    countEl.classList.add('hidden');
+    document.getElementById('btn-submit').disabled = true;
+  }
+}
+
+function removePhoto(idx) {
+  selectedFiles.splice(idx, 1);
+  renderPreviews();
+}
+
+// ============================================================
+// 이미지 압축 (Canvas API)
+// ============================================================
+async function compressImage(file) {
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const MAX = 1280;
+      let w = img.width, h = img.height;
+      if (w > MAX || h > MAX) {
+        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+        else { w = Math.round(w * MAX / h); h = MAX; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      canvas.toBlob(blob => resolve(blob || file), 'image/jpeg', 0.82);
+    };
+    img.onerror = () => resolve(file);
+    img.src = url;
+  });
+}
+
+async function fileToBase64(file) {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target.result.split(',')[1]);
+    reader.readAsDataURL(file);
+  });
+}
+
+// ============================================================
+// AI 분석 (Gemini)
+// ============================================================
+async function analyzeWithGemini(base64Images, mimeTypes, regulations) {
+  let regContext = '';
+  if (regulations.length === 0) {
+    regContext = '현재 등록된 VMD 규정이 없습니다. 사진을 보고 일반적인 매장 디스플레이 품질에 대해 피드백해 주세요.';
+  } else {
+    regContext = regulations.map(r =>
+      `■ 규정 파일: "${r.file_name}"\n${r.extracted_rules || '(규정 내용 없음)'}`
+    ).join('\n\n' + '─'.repeat(40) + '\n\n');
+  }
+
+  const prompt = `당신은 SK텔레콤 이동통신 유통 매장의 VMD(Visual Merchandising Display) 규정 점검 전문가입니다.
+
+아래는 현재 적용 중인 VMD 규정입니다:
+${'═'.repeat(50)}
+${regContext}
+${'═'.repeat(50)}
+
+위 규정들을 기준으로 첨부된 매장 사진(${base64Images.length}장)을 꼼꼼히 분석해 주세요.
+
+【출력 형식】
+아래 형식을 정확히 따라주세요.
+
+✅ 잘 된 점:
+(규정을 준수한 부분을 구체적으로 서술)
+
+---
+
+⚠️ 개선이 필요한 사항:
+
+【지적사항 1】
+• 근거 규정: "파일명" — 관련 규정 조항
+• 규정 내용: (해당 규정의 원문 또는 요약)
+• 발견된 문제: (사진에서 보이는 구체적인 문제점)
+
+【지적사항 2】
+(있다면 추가)
+
+---
+
+종합 의견:
+(전반적인 VMD 상태에 대한 한 줄 평가)
+
+※ 규정 위반 사항이 전혀 없다면 "✅ 전체적으로 VMD 규정에 잘 부합합니다." 라고 명시해 주세요.
+※ 반드시 한국어로 작성해 주세요.`;
+
+  const parts = [{ text: prompt }];
+  base64Images.forEach((b64, i) => {
+    parts.push({ inline_data: { mime_type: mimeTypes[i], data: b64 } });
+  });
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts }] })
+    }
+  );
+
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error?.message || `Gemini API 오류 (${res.status})`);
+  }
+
+  const data = await res.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || '분석 결과를 가져오지 못했습니다.';
+}
+
+// ============================================================
+// 제출 처리
+// ============================================================
+document.getElementById('btn-submit').addEventListener('click', async () => {
+  if (selectedFiles.length === 0) return;
+
+  showLoading('사진을 압축하고 있습니다...');
+
+  try {
+    // 1. 이미지 압축 + base64 변환
+    setLoadingMsg('이미지를 처리하고 있습니다...');
+    const compressed = await Promise.all(selectedFiles.map(compressImage));
+    const base64s = await Promise.all(compressed.map(fileToBase64));
+    const mimeTypes = compressed.map(() => 'image/jpeg');
+
+    // 2. Supabase에 사진 업로드 (실패해도 계속 진행)
+    const uploadedPaths = [];
+    if (sbClient) {
+      setLoadingMsg('사진을 서버에 저장하고 있습니다...');
+      try {
+        for (let i = 0; i < compressed.length; i++) {
+          const fileName = `${Date.now()}_${i}.jpg`;
+          const path = `${currentOrg}/${currentTeam}/${currentStore}/${fileName}`;
+          const { error } = await sbClient.storage.from('photos').upload(path, compressed[i], { contentType: 'image/jpeg', upsert: false });
+          if (!error) uploadedPaths.push(path);
+        }
+      } catch(e) { console.warn('사진 저장 실패 (무시):', e); }
+    }
+
+    // 3. 규정 가져오기 (실패해도 계속 진행)
+    setLoadingMsg('VMD 규정을 불러오고 있습니다...');
+    let regulations = [];
+    if (sbClient) {
+      try {
+        const { data } = await sbClient.from('regulations').select('file_name, extracted_rules').eq('is_active', true);
+        regulations = data || [];
+      } catch(e) { console.warn('규정 로드 실패:', e); }
+    }
+
+    // 4. Gemini AI 분석
+    setLoadingMsg(`AI가 ${selectedFiles.length}장의 사진을 규정과 대조하고 있습니다...<br><small>최대 30초 소요</small>`);
+    const feedback = await analyzeWithGemini(base64s, mimeTypes, regulations);
+
+    // 5. Supabase에 제출 기록 저장 (실패해도 계속 진행)
+    if (sbClient) {
+      try {
+        await sbClient.from('submissions').insert({
+          org_name: currentOrg,
+          team_name: currentTeam,
+          store_name: currentStore,
+          photo_paths: uploadedPaths,
+          ai_feedback: feedback,
+          status: 'submitted'
+        });
+      } catch(e) { console.warn('기록 저장 실패 (무시):', e); }
+    }
+
+    hideLoading();
+
+    // 6. 결과 표시
+    showResult(feedback, uploadedPaths);
+
+  } catch (err) {
+    hideLoading();
+    console.error(err);
+    alert(`오류가 발생했습니다:\n${err.message}\n\nGemini API 키와 Supabase 설정을 확인해주세요.`);
+  }
+});
+
+function showResult(feedback, photoPaths) {
+  document.getElementById('result-store-text').textContent = `${currentOrg} > ${currentTeam} > ${currentStore}`;
+
+  // 결과 사진 썸네일
+  const photosEl = document.getElementById('result-photos');
+  photosEl.innerHTML = '';
+  selectedFiles.forEach((f, i) => {
+    const url = URL.createObjectURL(f);
+    const img = document.createElement('img');
+    img.src = url; img.style.cssText = 'width:60px;height:60px;object-fit:cover;border-radius:8px;border:1px solid var(--border);';
+    photosEl.appendChild(img);
+  });
+
+  // AI 피드백 표시
+  document.getElementById('feedback-output').innerHTML = formatFeedback(feedback);
+
+  goToStep(3);
+
+  // 이력 갱신
+  loadHistory();
+}
+
+// ============================================================
+// 피드백 텍스트 포맷팅
+// ============================================================
+function formatFeedback(text) {
+  if (!text) return '<p>분석 결과 없음</p>';
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/【(.+?)】/g, '<span style="font-weight:700;color:var(--primary)">【$1】</span>')
+    .replace(/✅/g, '<span style="color:var(--success)">✅</span>')
+    .replace(/⚠️/g, '<span style="color:var(--warning)">⚠️</span>')
+    .replace(/• 근거 규정:/g, '<span style="color:var(--primary);font-weight:600">• 근거 규정:</span>')
+    .replace(/• 규정 내용:/g, '<span style="color:var(--text-muted);font-weight:600">• 규정 내용:</span>')
+    .replace(/• 발견된 문제:/g, '<span style="color:var(--danger);font-weight:600">• 발견된 문제:</span>')
+    .replace(/---/g, '<hr style="border:none;border-top:1px solid var(--border);margin:12px 0;">')
+    .replace(/\n/g, '<br>');
+}
+
+// ============================================================
+// 점검 이력 로드
+// ============================================================
+async function loadHistory() {
+  if (!currentStore || !sbClient) return;
+  const historyCard = document.getElementById('history-card');
+  document.getElementById('history-store-name').textContent = `${currentStore}`;
+
+  try {
+    const { data, error } = await sbClient
+      .from('submissions')
+      .select('*')
+      .eq('org_name', currentOrg)
+      .eq('team_name', currentTeam)
+      .eq('store_name', currentStore)
+      .order('submitted_at', { ascending: false })
+      .limit(10);
+
+    if (error) throw error;
+
+    const listEl = document.getElementById('history-list');
+    if (!data || data.length === 0) {
+      listEl.innerHTML = '<div class="history-empty">📭 아직 제출 이력이 없습니다.</div>';
+    } else {
+      listEl.innerHTML = data.map(s => {
+        const statusLabel = { submitted:'제출됨', needs_revision:'수정필요', approved:'승인' }[s.status] || s.status;
+        const statusClass = `status-${s.status}`;
+        const date = new Date(s.submitted_at).toLocaleString('ko-KR', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+        const photoCount = (s.photo_paths || []).length;
+        const feedbackPreview = (s.ai_feedback || '').replace(/<[^>]*>/g, '').substring(0, 100);
+
+        return `<div class="history-item">
+          <div class="history-header">
+            <span class="history-date">📅 ${date}</span>
+            <span class="status-badge ${statusClass}">${statusLabel}</span>
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);">📷 사진 ${photoCount}장</div>
+          ${feedbackPreview ? `<div class="history-feedback-preview">💬 ${feedbackPreview}...</div>` : ''}
+          ${s.ai_feedback ? `<button onclick="showFeedbackModal(${JSON.stringify(s.ai_feedback).replace(/"/g,'&quot;')})" style="margin-top:8px;font-size:12px;color:var(--primary);background:none;border:1px solid var(--primary);border-radius:6px;padding:4px 12px;cursor:pointer;">결과 전체보기</button>` : ''}
+        </div>`;
+      }).join('');
+    }
+    historyCard.classList.remove('hidden');
+  } catch(e) {
+    console.error('이력 로드 실패:', e);
+  }
+}
+
+function showFeedbackModal(feedback) {
+  document.getElementById('modal-feedback-content').innerHTML = formatFeedback(feedback);
+  document.getElementById('feedback-modal').classList.remove('hidden');
+}
+
+// ============================================================
+// 로딩 UI
+// ============================================================
+function showLoading(msg) {
+  setLoadingMsg(msg);
+  document.getElementById('loading-overlay').classList.remove('hidden');
+}
+function hideLoading() {
+  document.getElementById('loading-overlay').classList.add('hidden');
+}
+function setLoadingMsg(msg) {
+  document.getElementById('loading-msg').innerHTML = msg;
+}
+
+function setupEventListeners() {
+  // 모달 배경 클릭 시 닫기
+  document.getElementById('feedback-modal').addEventListener('click', function(e) {
+    if (e.target === this) this.classList.add('hidden');
+  });
+}
+
+// 앱 시작
+initApp();
+</script>
+</body>
+</html>
