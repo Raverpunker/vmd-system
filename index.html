@@ -307,6 +307,71 @@
       font-size: 13px; color: #92400E; margin-bottom: 14px;
     }
 
+    /* LIGHTBOX */
+    .lightbox-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 500;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .lightbox-overlay.hidden { display: none; }
+    .lightbox-img { max-width: 95vw; max-height: 88vh; object-fit: contain; border-radius: 4px; display: block; }
+    .lightbox-close {
+      position: absolute; top: 16px; right: 16px;
+      background: rgba(255,255,255,0.2); border: none; color: white;
+      width: 44px; height: 44px; border-radius: 50%; font-size: 22px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background 0.2s; z-index: 1;
+    }
+    .lightbox-close:hover { background: rgba(255,255,255,0.4); }
+    .lightbox-nav {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      background: rgba(255,255,255,0.18); border: none; color: white;
+      width: 48px; height: 48px; border-radius: 50%; font-size: 26px;
+      cursor: pointer; transition: background 0.2s; z-index: 1;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .lightbox-nav:hover { background: rgba(255,255,255,0.35); }
+    .lightbox-nav-prev { left: 16px; }
+    .lightbox-nav-next { right: 16px; }
+    .lightbox-counter {
+      position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+      color: rgba(255,255,255,0.85); font-size: 13px;
+      background: rgba(0,0,0,0.5); padding: 4px 14px; border-radius: 20px;
+    }
+    .photo-thumb-clickable { cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; }
+    .photo-thumb-clickable:hover { transform: scale(1.05); box-shadow: 0 4px 12px rgba(0,0,0,0.25); }
+
+    /* CATEGORY SELECTOR */
+    .category-section { margin-bottom: 14px; }
+    .category-section > .cat-title { display: block; font-size: 13px; font-weight: 600; color: var(--secondary); margin-bottom: 8px; }
+    .cat-btns { display: flex; gap: 8px; }
+    .cat-btn {
+      flex: 1; padding: 12px 8px; border: 2px solid var(--border); border-radius: 10px;
+      background: white; cursor: pointer; transition: all 0.2s; text-align: center;
+    }
+    .cat-btn .cat-icon { font-size: 22px; display: block; margin-bottom: 4px; }
+    .cat-btn .cat-label { font-size: 13px; font-weight: 700; color: var(--secondary); display: block; }
+    .cat-btn .cat-desc { font-size: 11px; color: var(--text-muted); display: block; margin-top: 2px; }
+    .cat-btn:hover:not(:disabled) { border-color: var(--primary); background: var(--primary-light); }
+    .cat-btn.active { border-color: var(--primary); background: var(--primary-light); }
+    .cat-btn.active .cat-label { color: var(--primary); }
+    .cat-btn.active .cat-desc { color: var(--primary); opacity: 0.7; }
+    .cat-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .cat-status { margin-top: 8px; font-size: 12px; padding: 8px 12px; border-radius: 8px; line-height: 1.5; }
+    .cat-initial { background: #EFF6FF; color: #1D4ED8; }
+    .cat-revision { background: #ECFDF5; color: #065F46; }
+    .cat-warn { background: #FFF7ED; color: #C2410C; }
+
+    /* COMPARISON BOX */
+    .comparison-box {
+      background: linear-gradient(135deg, #F0FDF4, #EFF6FF);
+      border: 2px solid #86EFAC; border-radius: 12px; padding: 16px; margin-bottom: 14px;
+    }
+    .comparison-box-title {
+      font-size: 14px; font-weight: 700; color: #166534;
+      margin-bottom: 12px; display: flex; align-items: center; gap: 6px;
+      padding-bottom: 10px; border-bottom: 1px solid #BBF7D0;
+    }
+
     @media (min-width: 600px) {
       main { padding: 24px; }
       .card { padding: 28px; }
@@ -314,6 +379,15 @@
   </style>
 </head>
 <body>
+
+<!-- LIGHTBOX -->
+<div class="lightbox-overlay hidden" id="lightbox-overlay">
+  <button class="lightbox-close" id="lb-close">✕</button>
+  <button class="lightbox-nav lightbox-nav-prev hidden" id="lb-prev">‹</button>
+  <img class="lightbox-img" id="lightbox-img" src="" alt="사진 확대">
+  <button class="lightbox-nav lightbox-nav-next hidden" id="lb-next">›</button>
+  <div class="lightbox-counter hidden" id="lb-counter"></div>
+</div>
 
 <!-- CONFIG WARNING -->
 <div class="config-warning" id="config-warning">
@@ -398,6 +472,24 @@
       <span class="badge-icon">📍</span>
       <span class="badge-text" id="selected-store-text"></span>
     </div>
+    <!-- 점검 구분 선택 -->
+    <div class="category-section" id="category-section">
+      <span class="cat-title">📋 점검 구분</span>
+      <div class="cat-btns">
+        <button class="cat-btn active" id="cat-btn-initial" onclick="selectCategory('initial')">
+          <span class="cat-icon">📝</span>
+          <span class="cat-label">최초 점검</span>
+          <span class="cat-desc">처음 제출하는 경우</span>
+        </button>
+        <button class="cat-btn" id="cat-btn-revision" onclick="selectCategory('revision')">
+          <span class="cat-icon">🔄</span>
+          <span class="cat-label">수정 점검</span>
+          <span class="cat-desc">최초 후 재제출 시</span>
+        </button>
+      </div>
+      <div class="cat-status cat-initial" id="cat-status-msg">점검 이력을 확인하는 중...</div>
+    </div>
+
     <div id="no-regulation-warn" class="no-regulation-warn hidden">
       ⚠️ 현재 등록된 VMD 규정이 없습니다. 관리자에게 규정 등록을 요청해주세요.
     </div>
@@ -420,7 +512,16 @@
       <span class="badge-icon">📍</span>
       <span class="badge-text" id="result-store-text"></span>
     </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+      <span id="result-cat-badge" style="font-size:12px;padding:3px 10px;border-radius:20px;font-weight:600;"></span>
+      <span style="font-size:11px;color:var(--text-muted);">👆 사진 클릭 시 확대</span>
+    </div>
     <div id="result-photos" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;"></div>
+    <!-- 수정 점검 비교 결과 -->
+    <div class="comparison-box hidden" id="comparison-box">
+      <div class="comparison-box-title">🔄 최초 점검 대비 변화 분석</div>
+      <div id="comparison-content" class="feedback-content" style="font-size:13px;line-height:1.8;"></div>
+    </div>
     <div class="feedback-wrap">
       <div id="feedback-output" class="feedback-content"></div>
     </div>
@@ -494,6 +595,43 @@ const STORE_DATA = {
 let sbClient = null;  // Supabase 클라이언트
 let selectedFiles = [];
 let currentOrg = '', currentTeam = '', currentStore = '';
+let currentCategory = 'initial';   // 'initial' | 'revision'
+let initialSubmission = null;       // 해당 매장의 최초 제출 데이터
+let previewUrls = [];               // 미리보기 blob URL 배열
+let resultPhotoUrls = [];           // 결과 사진 blob URL 배열
+
+// 라이트박스
+let lbImages = [];
+let lbIndex = 0;
+
+function openLightbox(images, index) {
+  lbImages = images;
+  lbIndex = index;
+  updateLightbox();
+  document.getElementById('lightbox-overlay').classList.remove('hidden');
+  document.addEventListener('keydown', lbKeyHandler);
+}
+function closeLightbox() {
+  document.getElementById('lightbox-overlay').classList.add('hidden');
+  document.removeEventListener('keydown', lbKeyHandler);
+}
+function lbNav(dir) {
+  lbIndex = (lbIndex + dir + lbImages.length) % lbImages.length;
+  updateLightbox();
+}
+function updateLightbox() {
+  document.getElementById('lightbox-img').src = lbImages[lbIndex];
+  const multi = lbImages.length > 1;
+  document.getElementById('lb-prev').classList.toggle('hidden', !multi);
+  document.getElementById('lb-next').classList.toggle('hidden', !multi);
+  document.getElementById('lb-counter').classList.toggle('hidden', !multi);
+  document.getElementById('lb-counter').textContent = `${lbIndex + 1} / ${lbImages.length}`;
+}
+function lbKeyHandler(e) {
+  if (e.key === 'Escape') closeLightbox();
+  if (e.key === 'ArrowLeft') lbNav(-1);
+  if (e.key === 'ArrowRight') lbNav(1);
+}
 
 function initApp() {
   const configured = SUPABASE_URL !== 'YOUR_SUPABASE_URL' && GEMINI_API_KEY !== 'YOUR_GEMINI_API_KEY';
@@ -513,6 +651,72 @@ function initApp() {
 
   populateOrgs();
   setupEventListeners();
+}
+
+// ============================================================
+// 카테고리 선택
+// ============================================================
+function selectCategory(cat) {
+  currentCategory = cat;
+  document.getElementById('cat-btn-initial').classList.toggle('active', cat === 'initial');
+  document.getElementById('cat-btn-revision').classList.toggle('active', cat === 'revision');
+}
+
+async function checkStoreSubmissions() {
+  const statusEl = document.getElementById('cat-status-msg');
+  const initBtn = document.getElementById('cat-btn-initial');
+  const revBtn = document.getElementById('cat-btn-revision');
+  initialSubmission = null;
+
+  // 기본값 리셋
+  initBtn.disabled = false;
+  revBtn.disabled = false;
+
+  if (!sbClient) {
+    selectCategory('initial');
+    statusEl.textContent = '📝 최초 점검으로 진행합니다. (DB 미연결)';
+    statusEl.className = 'cat-status cat-initial';
+    return;
+  }
+
+  try {
+    statusEl.textContent = '이력 확인 중...';
+    statusEl.className = 'cat-status cat-initial';
+
+    const { data } = await sbClient
+      .from('submissions')
+      .select('id, category, submitted_at, photo_paths, ai_feedback')
+      .eq('org_name', currentOrg)
+      .eq('team_name', currentTeam)
+      .eq('store_name', currentStore)
+      .order('submitted_at', { ascending: true });
+
+    const hasInitial = data?.some(s => s.category === 'initial');
+    const hasRevision = data?.some(s => s.category === 'revision');
+    initialSubmission = data?.find(s => s.category === 'initial') || null;
+
+    if (!hasInitial) {
+      // 최초 점검만 가능
+      selectCategory('initial');
+      revBtn.disabled = true;
+      statusEl.innerHTML = '📝 아직 최초 점검이 없습니다. <strong>최초 점검</strong>을 진행해 주세요.';
+      statusEl.className = 'cat-status cat-initial';
+    } else if (!hasRevision) {
+      // 최초 있음 → 수정 권장
+      selectCategory('revision');
+      statusEl.innerHTML = '✅ 최초 점검 완료 매장입니다. <strong>수정 점검</strong>을 진행합니다. (최초로 변경도 가능)';
+      statusEl.className = 'cat-status cat-revision';
+    } else {
+      // 둘 다 있음
+      selectCategory('revision');
+      statusEl.innerHTML = '⚠️ 최초 + 수정 점검이 모두 완료된 매장입니다. 재제출도 가능합니다.';
+      statusEl.className = 'cat-status cat-warn';
+    }
+  } catch(e) {
+    selectCategory('initial');
+    statusEl.textContent = '이력 확인 실패 — 최초 점검으로 진행합니다.';
+    statusEl.className = 'cat-status cat-warn';
+  }
 }
 
 // ============================================================
@@ -581,7 +785,8 @@ function goToStep(n) {
 document.getElementById('btn-next-1').addEventListener('click', async () => {
   document.getElementById('selected-store-text').textContent = `${currentOrg} > ${currentTeam} > ${currentStore}`;
   goToStep(2);
-  // 규정 등록 여부 확인
+  // 카테고리 이력 확인 + 규정 등록 여부 확인 (병렬)
+  await checkStoreSubmissions();
   try {
     if (!sbClient) return;
     const { data } = await sbClient.from('regulations').select('id').eq('is_active', true).limit(1);
@@ -646,16 +851,20 @@ function renderPreviews() {
   const grid = document.getElementById('preview-grid');
   const countEl = document.getElementById('preview-count');
   grid.innerHTML = '';
+  // blob URL 목록 갱신 (라이트박스에서 참조)
+  previewUrls = selectedFiles.map(f => URL.createObjectURL(f));
   selectedFiles.forEach((f, idx) => {
-    const url = URL.createObjectURL(f);
     const item = document.createElement('div');
     item.className = 'preview-item';
-    item.innerHTML = `<img src="${url}" alt="사진 ${idx+1}">
+    item.innerHTML = `
+      <img src="${previewUrls[idx]}" alt="사진 ${idx+1}"
+        style="cursor:pointer;" title="클릭하면 확대됩니다"
+        onclick="openLightbox(previewUrls, ${idx})">
       <button class="preview-remove" onclick="removePhoto(${idx})">✕</button>`;
     grid.appendChild(item);
   });
   if (selectedFiles.length > 0) {
-    countEl.textContent = `${selectedFiles.length}장 선택됨`;
+    countEl.textContent = `${selectedFiles.length}장 선택됨 · 사진 클릭 시 확대`;
     countEl.classList.remove('hidden');
     document.getElementById('btn-submit').disabled = false;
   } else {
@@ -774,6 +983,62 @@ ${'═'.repeat(50)}
 }
 
 // ============================================================
+// 비교 분석 (수정 점검 시 최초 대비 변화 분석)
+// ============================================================
+async function analyzeComparisonWithGemini(revisionBase64s, revisionMimeTypes, initSub) {
+  const initFeedback = initSub?.ai_feedback || '(최초 점검 피드백 없음)';
+  const initDate = initSub?.submitted_at
+    ? new Date(initSub.submitted_at).toLocaleString('ko-KR', {year:'numeric',month:'2-digit',day:'2-digit'})
+    : '';
+
+  const prompt = `당신은 VMD 규정 점검 전문가입니다.
+
+아래는 [${currentStore}] 매장의 최초 점검(${initDate}) AI 피드백입니다:
+${'─'.repeat(50)}
+${initFeedback}
+${'─'.repeat(50)}
+
+위 최초 점검 결과를 기준으로, 첨부된 수정 후 사진(${revisionBase64s.length}장)을 분석하여 무엇이 개선되었고 무엇이 아직 미흡한지 비교 분석해 주세요.
+
+【출력 형식】
+
+✅ 개선된 사항:
+(최초 점검 이후 수정/보완된 부분을 구체적으로 서술)
+
+⚠️ 아직 미흡한 사항:
+(여전히 보완이 필요한 부분)
+
+🆕 신규 발견 사항:
+(수정 후 사진에서 새롭게 발견된 사항 — 없으면 "없음")
+
+---
+종합 평가:
+(개선 정도를 간략히 평가)
+
+반드시 한국어로 작성해 주세요.`;
+
+  const parts = [{ text: prompt }];
+  revisionBase64s.forEach((b64, i) => {
+    parts.push({ inline_data: { mime_type: revisionMimeTypes[i], data: b64 } });
+  });
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts }] })
+    }
+  );
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error?.message || `Gemini 비교 분석 오류 (${res.status})`);
+  }
+  const data = await res.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+}
+
+// ============================================================
 // 제출 처리
 // ============================================================
 document.getElementById('btn-submit').addEventListener('click', async () => {
@@ -816,6 +1081,17 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
     setLoadingMsg(`AI가 ${selectedFiles.length}장의 사진을 규정과 대조하고 있습니다...<br><small>최대 30초 소요</small>`);
     const feedback = await analyzeWithGemini(base64s, mimeTypes, regulations);
 
+    // 4-2. 수정 점검 시: 최초 대비 비교 분석
+    let comparisonFeedback = null;
+    if (currentCategory === 'revision' && initialSubmission) {
+      try {
+        setLoadingMsg('최초 점검과 비교 분석 중...<br><small>변화된 부분을 찾고 있습니다</small>');
+        comparisonFeedback = await analyzeComparisonWithGemini(base64s, mimeTypes, initialSubmission);
+      } catch(e) {
+        console.warn('비교 분석 실패 (무시):', e);
+      }
+    }
+
     // 5. Supabase에 제출 기록 저장 (실패해도 계속 진행)
     if (sbClient) {
       try {
@@ -825,6 +1101,7 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
           store_name: currentStore,
           photo_paths: uploadedPaths,
           ai_feedback: feedback,
+          category: currentCategory,
           status: 'submitted'
         });
       } catch(e) { console.warn('기록 저장 실패 (무시):', e); }
@@ -833,7 +1110,7 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
     hideLoading();
 
     // 6. 결과 표시
-    showResult(feedback, uploadedPaths);
+    showResult(feedback, uploadedPaths, comparisonFeedback);
 
   } catch (err) {
     hideLoading();
@@ -842,18 +1119,41 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
   }
 });
 
-function showResult(feedback, photoPaths) {
+function showResult(feedback, photoPaths, comparisonFeedback) {
   document.getElementById('result-store-text').textContent = `${currentOrg} > ${currentTeam} > ${currentStore}`;
 
-  // 결과 사진 썸네일
+  // 구분 뱃지
+  const catBadge = document.getElementById('result-cat-badge');
+  if (currentCategory === 'revision') {
+    catBadge.textContent = '🔄 수정 점검';
+    catBadge.style.cssText = 'background:#ECFDF5;color:#065F46;font-size:12px;padding:3px 10px;border-radius:20px;font-weight:600;';
+  } else {
+    catBadge.textContent = '📝 최초 점검';
+    catBadge.style.cssText = 'background:#EFF6FF;color:#1D4ED8;font-size:12px;padding:3px 10px;border-radius:20px;font-weight:600;';
+  }
+
+  // 결과 사진 썸네일 (클릭 시 라이트박스)
+  resultPhotoUrls = selectedFiles.map(f => URL.createObjectURL(f));
   const photosEl = document.getElementById('result-photos');
   photosEl.innerHTML = '';
-  selectedFiles.forEach((f, i) => {
-    const url = URL.createObjectURL(f);
+  resultPhotoUrls.forEach((url, i) => {
     const img = document.createElement('img');
-    img.src = url; img.style.cssText = 'width:60px;height:60px;object-fit:cover;border-radius:8px;border:1px solid var(--border);';
+    img.src = url;
+    img.className = 'photo-thumb-clickable';
+    img.style.cssText = 'width:64px;height:64px;object-fit:cover;border-radius:8px;border:1.5px solid var(--border);';
+    img.title = '클릭하면 확대됩니다';
+    img.onclick = () => openLightbox(resultPhotoUrls, i);
     photosEl.appendChild(img);
   });
+
+  // 수정 점검 비교 결과 표시
+  const compBox = document.getElementById('comparison-box');
+  if (comparisonFeedback) {
+    document.getElementById('comparison-content').innerHTML = formatFeedback(comparisonFeedback);
+    compBox.classList.remove('hidden');
+  } else {
+    compBox.classList.add('hidden');
+  }
 
   // AI 피드백 표시
   document.getElementById('feedback-output').innerHTML = formatFeedback(feedback);
@@ -908,19 +1208,45 @@ async function loadHistory() {
     if (!data || data.length === 0) {
       listEl.innerHTML = '<div class="history-empty">📭 아직 제출 이력이 없습니다.</div>';
     } else {
-      listEl.innerHTML = data.map(s => {
+      listEl.innerHTML = data.map((s, histIdx) => {
         const statusLabel = { submitted:'제출됨', needs_revision:'수정필요', approved:'승인' }[s.status] || s.status;
         const statusClass = `status-${s.status}`;
         const date = new Date(s.submitted_at).toLocaleString('ko-KR', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
         const photoCount = (s.photo_paths || []).length;
         const feedbackPreview = (s.ai_feedback || '').replace(/<[^>]*>/g, '').substring(0, 100);
 
+        // 카테고리 뱃지
+        const catLabel = s.category === 'revision' ? '🔄 수정' : '📝 최초';
+        const catStyle = s.category === 'revision'
+          ? 'background:#ECFDF5;color:#065F46;'
+          : 'background:#EFF6FF;color:#1D4ED8;';
+
+        // 사진 썸네일 (Storage public URL 사용)
+        let photoHtml = '';
+        if (sbClient && photoCount > 0) {
+          photoHtml = '<div class="history-photos">';
+          (s.photo_paths || []).forEach((path, pi) => {
+            try {
+              const { data: { publicUrl } } = sbClient.storage.from('photos').getPublicUrl(path);
+              photoHtml += `<img class="history-photo photo-thumb-clickable" src="${publicUrl}" alt="사진 ${pi+1}"
+                onclick="openLightbox(${JSON.stringify((s.photo_paths||[]).map(p => sbClient.storage.from('photos').getPublicUrl(p).data.publicUrl))}, ${pi})"
+                title="클릭하면 확대됩니다">`;
+            } catch(e) { /* ignore */ }
+          });
+          photoHtml += '</div>';
+        } else {
+          photoHtml = `<div style="font-size:12px;color:var(--text-muted);">📷 사진 ${photoCount}장</div>`;
+        }
+
         return `<div class="history-item">
           <div class="history-header">
             <span class="history-date">📅 ${date}</span>
-            <span class="status-badge ${statusClass}">${statusLabel}</span>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;${catStyle}">${catLabel}</span>
+              <span class="status-badge ${statusClass}">${statusLabel}</span>
+            </div>
           </div>
-          <div style="font-size:12px;color:var(--text-muted);">📷 사진 ${photoCount}장</div>
+          ${photoHtml}
           ${feedbackPreview ? `<div class="history-feedback-preview">💬 ${feedbackPreview}...</div>` : ''}
           ${s.ai_feedback ? `<button onclick="showFeedbackModal(${JSON.stringify(s.ai_feedback).replace(/"/g,'&quot;')})" style="margin-top:8px;font-size:12px;color:var(--primary);background:none;border:1px solid var(--primary);border-radius:6px;padding:4px 12px;cursor:pointer;">결과 전체보기</button>` : ''}
         </div>`;
@@ -955,6 +1281,14 @@ function setupEventListeners() {
   // 모달 배경 클릭 시 닫기
   document.getElementById('feedback-modal').addEventListener('click', function(e) {
     if (e.target === this) this.classList.add('hidden');
+  });
+
+  // 라이트박스 이벤트
+  document.getElementById('lb-close').addEventListener('click', closeLightbox);
+  document.getElementById('lb-prev').addEventListener('click', () => lbNav(-1));
+  document.getElementById('lb-next').addEventListener('click', () => lbNav(1));
+  document.getElementById('lightbox-overlay').addEventListener('click', function(e) {
+    if (e.target === this) closeLightbox();
   });
 }
 

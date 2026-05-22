@@ -212,6 +212,57 @@
 
     .hidden { display: none !important; }
 
+    /* LIGHTBOX */
+    .lightbox-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 600;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .lightbox-overlay.hidden { display: none; }
+    .lightbox-img { max-width: 94vw; max-height: 88vh; object-fit: contain; border-radius: 4px; display: block; }
+    .lightbox-close {
+      position: absolute; top: 16px; right: 16px;
+      background: rgba(255,255,255,0.2); border: none; color: white;
+      width: 44px; height: 44px; border-radius: 50%; font-size: 22px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background 0.2s; z-index: 1;
+    }
+    .lightbox-close:hover { background: rgba(255,255,255,0.4); }
+    .lightbox-nav {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      background: rgba(255,255,255,0.18); border: none; color: white;
+      width: 48px; height: 48px; border-radius: 50%; font-size: 26px;
+      cursor: pointer; transition: background 0.2s; z-index: 1;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .lightbox-nav:hover { background: rgba(255,255,255,0.35); }
+    .lightbox-nav-prev { left: 16px; }
+    .lightbox-nav-next { right: 16px; }
+    .lightbox-counter {
+      position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+      color: rgba(255,255,255,0.85); font-size: 13px;
+      background: rgba(0,0,0,0.5); padding: 4px 14px; border-radius: 20px;
+    }
+    .photo-thumb {
+      width: 44px; height: 44px; object-fit: cover; border-radius: 6px;
+      border: 1.5px solid var(--border); cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .photo-thumb:hover { transform: scale(1.08); box-shadow: 0 3px 10px rgba(0,0,0,0.2); }
+    .photo-thumbs { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+
+    /* CATEGORY BADGE */
+    .cat-badge-initial { background: #EFF6FF; color: #1D4ED8; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+    .cat-badge-revision { background: #ECFDF5; color: #065F46; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+
+    /* COMPARE MODAL */
+    .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .compare-col { background: var(--bg); border-radius: 8px; padding: 14px; }
+    .compare-col-title { font-size: 13px; font-weight: 700; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+    .compare-initial .compare-col-title { color: #1D4ED8; }
+    .compare-revision .compare-col-title { color: #065F46; }
+    .compare-photos { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 10px; }
+    @media (max-width: 600px) { .compare-grid { grid-template-columns: 1fr; } }
+
     @media (max-width: 768px) {
       .sidebar { width: 60px; }
       .sidebar-title, .sidebar-sub, .nav-item span, .logout-btn span { display: none; }
@@ -236,6 +287,24 @@
     <div style="margin-top:16px; font-size:12px; color:var(--text-muted);">
       <a href="index.html" style="color:var(--text-muted);">← 매장 점검 페이지로</a>
     </div>
+  </div>
+</div>
+
+<!-- LIGHTBOX -->
+<div class="lightbox-overlay hidden" id="lightbox-overlay">
+  <button class="lightbox-close" id="lb-close">✕</button>
+  <button class="lightbox-nav lightbox-nav-prev hidden" id="lb-prev">‹</button>
+  <img class="lightbox-img" id="lightbox-img" src="" alt="사진 확대">
+  <button class="lightbox-nav lightbox-nav-next hidden" id="lb-next">›</button>
+  <div class="lightbox-counter hidden" id="lb-counter"></div>
+</div>
+
+<!-- COMPARE MODAL -->
+<div class="modal hidden" id="compare-modal">
+  <div class="modal-box" style="max-width:860px;">
+    <button class="modal-close-btn" onclick="document.getElementById('compare-modal').classList.add('hidden')">✕</button>
+    <div class="modal-title" id="compare-modal-title">📊 최초 vs 수정 비교</div>
+    <div class="compare-grid" id="compare-grid"></div>
   </div>
 </div>
 
@@ -366,6 +435,14 @@
               <select id="filter-team"><option value="">전체</option></select>
             </div>
             <div class="filter-group">
+              <label>구분</label>
+              <select id="filter-category">
+                <option value="">전체</option>
+                <option value="initial">최초</option>
+                <option value="revision">수정</option>
+              </select>
+            </div>
+            <div class="filter-group">
               <label>상태</label>
               <select id="filter-status">
                 <option value="">전체</option>
@@ -398,13 +475,14 @@
                   <th>담당</th>
                   <th>팀</th>
                   <th>매장명</th>
+                  <th>구분</th>
                   <th>사진</th>
                   <th>상태</th>
                   <th>관리</th>
                 </tr>
               </thead>
               <tbody id="submissions-tbody">
-                <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-muted);">데이터를 불러오는 중...</td></tr>
+                <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-muted);">데이터를 불러오는 중...</td></tr>
               </tbody>
             </table>
           </div>
@@ -446,6 +524,39 @@ let filteredSubmissions = [];
 let currentPage = 1;
 const PAGE_SIZE = 20;
 let editNoteId = null;
+
+// 라이트박스
+let lbImages = [];
+let lbIndex = 0;
+
+function openLightbox(images, index) {
+  lbImages = images;
+  lbIndex = index;
+  updateLightbox();
+  document.getElementById('lightbox-overlay').classList.remove('hidden');
+  document.addEventListener('keydown', lbKeyHandler);
+}
+function closeLightbox() {
+  document.getElementById('lightbox-overlay').classList.add('hidden');
+  document.removeEventListener('keydown', lbKeyHandler);
+}
+function lbNav(dir) {
+  lbIndex = (lbIndex + dir + lbImages.length) % lbImages.length;
+  updateLightbox();
+}
+function updateLightbox() {
+  document.getElementById('lightbox-img').src = lbImages[lbIndex];
+  const multi = lbImages.length > 1;
+  document.getElementById('lb-prev').classList.toggle('hidden', !multi);
+  document.getElementById('lb-next').classList.toggle('hidden', !multi);
+  document.getElementById('lb-counter').classList.toggle('hidden', !multi);
+  document.getElementById('lb-counter').textContent = `${lbIndex + 1} / ${lbImages.length}`;
+}
+function lbKeyHandler(e) {
+  if (e.key === 'Escape') closeLightbox();
+  if (e.key === 'ArrowLeft') lbNav(-1);
+  if (e.key === 'ArrowRight') lbNav(1);
+}
 
 // PDF.js 설정 (로드 실패해도 무시)
 try {
@@ -501,6 +612,14 @@ function initAdmin() {
   loadRegulations();
   loadStatistics();
   loadSubmissions();
+
+  // 라이트박스 이벤트
+  document.getElementById('lb-close').addEventListener('click', closeLightbox);
+  document.getElementById('lb-prev').addEventListener('click', () => lbNav(-1));
+  document.getElementById('lb-next').addEventListener('click', () => lbNav(1));
+  document.getElementById('lightbox-overlay').addEventListener('click', function(e) {
+    if (e.target === this) closeLightbox();
+  });
 }
 
 function showDbStatus(ok) {
@@ -847,6 +966,7 @@ function applyFilters() {
   const org = document.getElementById('filter-org').value;
   const team = document.getElementById('filter-team').value;
   const status = document.getElementById('filter-status').value;
+  const category = document.getElementById('filter-category').value;
   const store = document.getElementById('filter-store').value.trim();
 
   filteredSubmissions = allSubmissions.filter(s => {
@@ -856,6 +976,7 @@ function applyFilters() {
     if (org && s.org_name !== org) return false;
     if (team && s.team_name !== team) return false;
     if (status && s.status !== status) return false;
+    if (category && (s.category || 'initial') !== category) return false;
     if (store && !s.store_name.includes(store)) return false;
     return true;
   });
@@ -869,6 +990,7 @@ function resetFilters() {
   document.getElementById('filter-org').value = '';
   document.getElementById('filter-team').innerHTML = '<option value="">전체</option>';
   document.getElementById('filter-status').value = '';
+  document.getElementById('filter-category').value = '';
   document.getElementById('filter-store').value = '';
   const today = new Date();
   const threeMonthsAgo = new Date(today); threeMonthsAgo.setMonth(threeMonthsAgo.getMonth()-3);
@@ -889,7 +1011,7 @@ function renderTable() {
   document.getElementById('result-count').textContent = `총 ${total}건 (${currentPage}/${totalPages}페이지)`;
 
   if (total === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-muted);">검색 결과가 없습니다.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-muted);">검색 결과가 없습니다.</td></tr>';
     document.getElementById('pagination').innerHTML = '';
     return;
   }
@@ -899,7 +1021,37 @@ function renderTable() {
     const date = new Date(s.submitted_at).toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
     const statusMap = { submitted:'검토 대기', needs_revision:'수정 필요', approved:'승인' };
     const statusLabel = statusMap[s.status] || s.status;
-    const photoCnt = (s.photo_paths||[]).length;
+    const photoPaths = s.photo_paths || [];
+    const cat = s.category || 'initial';
+
+    // 구분 뱃지
+    const catBadge = cat === 'revision'
+      ? '<span class="cat-badge-revision">🔄 수정</span>'
+      : '<span class="cat-badge-initial">📝 최초</span>';
+
+    // 사진 썸네일 (Storage public URL)
+    let photoHtml = '<span style="color:var(--text-muted);font-size:12px;">없음</span>';
+    if (sbClient && photoPaths.length > 0) {
+      try {
+        const urls = photoPaths.map(p => sbClient.storage.from('photos').getPublicUrl(p).data.publicUrl);
+        const urlsJson = JSON.stringify(urls).replace(/"/g, '&quot;');
+        photoHtml = '<div class="photo-thumbs">' +
+          urls.map((url, pi) =>
+            `<img class="photo-thumb" src="${url}" alt="사진 ${pi+1}"
+              onclick='openLightbox(${JSON.stringify(urls)}, ${pi})'
+              title="클릭하면 확대됩니다">`
+          ).join('') +
+        '</div>';
+      } catch(e) {
+        photoHtml = `<span style="font-size:12px;color:var(--text-muted);">${photoPaths.length}장</span>`;
+      }
+    }
+
+    // 해당 매장에 비교 가능한 쌍이 있는지 확인
+    const sameStore = allSubmissions.filter(x => x.store_name === s.store_name && x.org_name === s.org_name);
+    const hasInitial = sameStore.some(x => (x.category||'initial') === 'initial');
+    const hasRevision = sameStore.some(x => (x.category||'initial') === 'revision');
+    const canCompare = hasInitial && hasRevision;
 
     return `<tr>
       <td>${rowNum}</td>
@@ -907,11 +1059,13 @@ function renderTable() {
       <td>${s.org_name}</td>
       <td>${s.team_name}</td>
       <td><strong>${s.store_name}</strong></td>
-      <td style="text-align:center;">${photoCnt}장</td>
+      <td>${catBadge}</td>
+      <td>${photoHtml}</td>
       <td><span class="status-badge status-${s.status}">${statusLabel}</span></td>
       <td>
         <div style="display:flex;gap:4px;flex-wrap:wrap;">
           ${s.ai_feedback ? `<button class="btn btn-outline btn-sm" onclick="viewFeedback(${s.id})">결과보기</button>` : ''}
+          ${canCompare ? `<button class="btn btn-outline btn-sm" style="color:var(--success);border-color:var(--success);" onclick="viewComparison('${s.store_name.replace(/'/g,"\\'")}','${s.org_name.replace(/'/g,"\\'")}')">📊 비교</button>` : ''}
           <select onchange="updateStatus(${s.id}, this.value)" style="padding:4px 6px;font-size:11px;border:1px solid var(--border);border-radius:5px;">
             <option value="">상태변경</option>
             <option value="submitted">검토 대기</option>
@@ -946,6 +1100,51 @@ function renderPagination(totalPages) {
 }
 
 function goPage(p) { currentPage = p; renderTable(); window.scrollTo({top:0,behavior:'smooth'}); }
+
+async function viewComparison(storeName, orgName) {
+  const storeItems = allSubmissions.filter(s => s.store_name === storeName && s.org_name === orgName);
+  const initSub = storeItems.find(s => (s.category || 'initial') === 'initial');
+  const revSub = storeItems.find(s => (s.category || 'initial') === 'revision');
+  if (!initSub || !revSub) { alert('최초 또는 수정 점검 데이터가 없습니다.'); return; }
+
+  document.getElementById('compare-modal-title').textContent = `📊 ${storeName} — 최초 vs 수정 비교`;
+
+  function makePhotoHtml(sub) {
+    if (!sbClient || !(sub.photo_paths || []).length) return '<p style="color:var(--text-muted);font-size:12px;">사진 없음</p>';
+    try {
+      const urls = sub.photo_paths.map(p => sbClient.storage.from('photos').getPublicUrl(p).data.publicUrl);
+      return '<div class="compare-photos">' +
+        urls.map((url, i) =>
+          `<img class="photo-thumb" src="${url}" alt="사진 ${i+1}"
+            onclick='openLightbox(${JSON.stringify(urls)}, ${i})'
+            title="클릭하면 확대됩니다">`
+        ).join('') +
+      '</div>';
+    } catch(e) { return `<p style="font-size:12px;color:var(--text-muted);">${sub.photo_paths.length}장</p>`; }
+  }
+
+  function makeFeedbackHtml(sub) {
+    if (!sub.ai_feedback) return '<p style="color:var(--text-muted);font-size:13px;">피드백 없음</p>';
+    return `<div style="font-size:12px;line-height:1.7;white-space:pre-wrap;max-height:360px;overflow-y:auto;">${sub.ai_feedback.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}</div>`;
+  }
+
+  const initDate = new Date(initSub.submitted_at).toLocaleString('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit'});
+  const revDate = new Date(revSub.submitted_at).toLocaleString('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit'});
+
+  document.getElementById('compare-grid').innerHTML = `
+    <div class="compare-col compare-initial">
+      <div class="compare-col-title">📝 최초 점검 (${initDate})</div>
+      ${makePhotoHtml(initSub)}
+      ${makeFeedbackHtml(initSub)}
+    </div>
+    <div class="compare-col compare-revision">
+      <div class="compare-col-title">🔄 수정 점검 (${revDate})</div>
+      ${makePhotoHtml(revSub)}
+      ${makeFeedbackHtml(revSub)}
+    </div>
+  `;
+  document.getElementById('compare-modal').classList.remove('hidden');
+}
 
 async function viewFeedback(id) {
   const s = allSubmissions.find(x => x.id === id);
@@ -998,11 +1197,13 @@ function exportToExcel() {
   if (filteredSubmissions.length === 0) { alert('다운로드할 데이터가 없습니다.'); return; }
 
   const statusMap = { submitted:'검토 대기', needs_revision:'수정 필요', approved:'승인' };
+  const catMap = { initial:'최초', revision:'수정' };
   const rows = filteredSubmissions.map(s => ({
     '제출일시': new Date(s.submitted_at).toLocaleString('ko-KR'),
     '담당': s.org_name,
     '팀': s.team_name,
     '매장명': s.store_name,
+    '구분': catMap[s.category || 'initial'] || '최초',
     '사진수': (s.photo_paths||[]).length,
     '상태': statusMap[s.status] || s.status,
     'AI 피드백': (s.ai_feedback||'').replace(/<[^>]*>/g,'').substring(0, 2000),
@@ -1012,7 +1213,7 @@ function exportToExcel() {
 
   const ws = XLSX.utils.json_to_sheet(rows);
   ws['!cols'] = [
-    {wch:20},{wch:16},{wch:16},{wch:20},{wch:8},{wch:12},{wch:60},{wch:30},{wch:20}
+    {wch:20},{wch:16},{wch:16},{wch:20},{wch:8},{wch:8},{wch:12},{wch:60},{wch:30},{wch:20}
   ];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'VMD 점검 이력');
@@ -1035,7 +1236,7 @@ function setProgress(pct, label) {
 // ============================================================
 // 모달 닫기
 // ============================================================
-['feedback-modal','note-modal'].forEach(id => {
+['feedback-modal','note-modal','compare-modal'].forEach(id => {
   document.getElementById(id).addEventListener('click', function(e) {
     if (e.target === this) this.classList.add('hidden');
   });
